@@ -20,6 +20,9 @@ package org.apache.axis2.transport.jms;
 import junit.framework.Assert;
 import junit.framework.TestCase;
 
+/**
+ * Unit test for the JMSUtil.java
+ */
 public class JMSUtilTest extends TestCase {
 
     private static String url = "jms:/cgc.afid.eproposal.notification?transport.jms" +
@@ -27,6 +30,9 @@ public class JMSUtilTest extends TestCase {
             ".TibjmsInitialContextFactory&java.naming.provider.url=tcp://localhost:9443&transport.jms" +
             ".DestinationType=queue&transport.jms.UserName=user&transport.jms.Password=secret&java.naming.security.principal=nandika&java.naming.security.credentials=secret";
 
+    /**
+     * Testing the URL masking to hide sensitive info.
+     */
     public void testUrlMask() {
         String maskedUrl = JMSUtils.maskURLPasswordAndCredentials(url);
         Assert.assertFalse("URL masking test", maskedUrl.contains("secret"));
