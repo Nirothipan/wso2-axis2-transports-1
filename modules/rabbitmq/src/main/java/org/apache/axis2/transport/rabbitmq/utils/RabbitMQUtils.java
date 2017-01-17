@@ -43,14 +43,19 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.Map;
-
+import java.util.concurrent.TimeoutException;
 
 public class RabbitMQUtils {
 
     private static final Log log = LogFactory.getLog(RabbitMQUtils.class);
 
     public static Connection createConnection(ConnectionFactory factory) throws IOException {
-        Connection connection = factory.newConnection();
+        Connection connection = null;
+        try {
+            connection = factory.newConnection();
+        } catch (TimeoutException e) {
+            log.warn("TimeoutException", e);
+        }
         return connection;
     }
 
