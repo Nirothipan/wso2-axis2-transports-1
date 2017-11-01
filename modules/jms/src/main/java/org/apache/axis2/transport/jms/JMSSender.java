@@ -136,7 +136,7 @@ public class JMSSender extends AbstractTransportSender implements ManagementSupp
 
                     // messageSender only needed to add if the scenario involved with XA transaction. It can be
                     // identified by looking at target url's transport.jms.TransactionCommand parameter.
-                    if ((msgCtx.getTo().toString().contains(JMSConstants.JMS_TRANSACTION_COMMAND))) {
+                    if ((targetAddress.contains(JMSConstants.JMS_TRANSACTION_COMMAND))) {
                         Transaction transaction = (Transaction) msgCtx.getProperty(JMSConstants.JMS_XA_TRANSACTION);
                         if (jmsMessageSenderMap.get(transaction) == null) {
                             ArrayList list = new ArrayList();
