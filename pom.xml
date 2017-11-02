@@ -305,7 +305,7 @@
             <dependency>
                 <groupId>junit</groupId>
                 <artifactId>junit</artifactId>
-                <version>3.8.2</version>
+                <version>${junit.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.aspectj</groupId>
@@ -321,6 +321,19 @@
                 <groupId>xmlunit</groupId>
                 <artifactId>xmlunit</artifactId>
                 <version>1.2</version>
+            </dependency>
+            <!--Mockito Dependency-->
+            <dependency>
+                <groupId>org.powermock</groupId>
+                <artifactId>powermock-api-mockito2</artifactId>
+                <version>${powermock.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.powermock</groupId>
+                <artifactId>powermock-module-junit4</artifactId>
+                <version>${powermock.version}</version>
+                <scope>test</scope>
             </dependency>
             <dependency>
                 <groupId>org.mockejb</groupId>
@@ -586,6 +599,8 @@
         <jsmpp-version>2.0.1</jsmpp-version>
         <slf4j-version>1.4.3</slf4j-version>
         <paho.version>1.0.2</paho.version>
+        <powermock.version>1.7.1</powermock.version>
+        <junit.version>4.8.2</junit.version>
     </properties>
 
 </project>
