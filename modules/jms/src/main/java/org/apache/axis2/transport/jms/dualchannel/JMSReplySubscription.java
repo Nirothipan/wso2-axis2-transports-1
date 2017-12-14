@@ -25,7 +25,6 @@ import org.apache.commons.logging.LogFactory;
 
 import javax.jms.Connection;
 import javax.jms.ConnectionFactory;
-import javax.jms.Destination;
 import javax.jms.JMSException;
 import javax.jms.Message;
 import javax.jms.MessageConsumer;
@@ -36,6 +35,8 @@ import javax.naming.NamingException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Contains following additional information.
@@ -60,6 +61,11 @@ public class JMSReplySubscription implements Runnable {
 
     private Connection connection;
     private Session session;
+
+    /**
+     * Lock to ensure that updates to the subscription / its listeners are updated consistently.
+     */
+    private Lock lock = new ReentrantLock();
 
     JMSReplySubscription(InitialContext initialContext, String connectionFactoryName, String identifier)
             throws NamingException, JMSException {
@@ -113,8 +119,9 @@ public class JMSReplySubscription implements Runnable {
             while (null != message) {
 
                 String jmsCorrelationId = message.getJMSCorrelationID();
-                log.error("CCOOCOCOCOC correlationId : " + jmsCorrelationId + " identifier : " + identifier);
-
+                if (log.isDebugEnabled()) {
+                    log.debug("Received correlationId : " + jmsCorrelationId + " identifier : " + identifier);
+                }
                 JMSReplyContainer jmsReplyContainer = listeningRequests.get(jmsCorrelationId);
 
                 if (null != jmsReplyContainer) {
@@ -142,15 +149,27 @@ public class JMSReplySubscription implements Runnable {
     /**
      * Announce closing of this subscription to any listeners still waiting for a reply, and cancel the scheduled task.
      */
-    void cleanupTask() throws JMSException {
+    void cleanupTask() {
+
+        // No locks required since this is a concurrent hash map.
         for (Map.Entry<String,JMSReplyContainer> request : listeningRequests.entrySet()) {
             request.getValue().getCountDownLatch().countDown();
         }
         taskReference.cancel(true);
 
-        messageConsumer.close();
-        session.close();
-        connection.close();
+        lock.lock();
+        try {
+            messageConsumer.close();
+            session.close();
+            connection.close();
+        } catch (JMSException e) {
+            log.error("Error when trying to close JMS reply subscription for identifier : " + identifier, e);
+        } finally {
+            messageConsumer = null;
+            session = null;
+            connection = null;
+        }
+        lock.unlock();
 
     }
 

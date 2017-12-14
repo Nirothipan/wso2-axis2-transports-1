@@ -31,28 +31,24 @@ class JMSExceptionListener implements ExceptionListener {
 
     private static final Log log = LogFactory.getLog(JMSExceptionListener.class);
 
-    private String uniqueReplyQueueName;
+    private String identifier;
 
-    JMSExceptionListener(String uniqueReplyQueueName) {
-        this.uniqueReplyQueueName = uniqueReplyQueueName;
+    JMSExceptionListener(String identifier) {
+        this.identifier = identifier;
     }
 
     @Override
     public void onException(JMSException e) {
 
-        synchronized (uniqueReplyQueueName.intern()) {
-            log.error("Cache will be cleared due to JMSException for subscription on : " + uniqueReplyQueueName, e);
+        synchronized (identifier.intern()) {
+            log.error("Cache will be cleared due to JMSException for subscription on : " + identifier, e);
 
             JMSReplySubscription jmsReplySubscription = JMSReplySubscriptionCache.getJMSReplySubscriptionCache()
-                    .getAndRemove(uniqueReplyQueueName);
+                    .getAndRemove(identifier);
 
-            try {
-                jmsReplySubscription.cleanupTask();
-            } catch (JMSException e1) {
-                log.error("Error while closing JMSReplySubscription for key : " + uniqueReplyQueueName, e1);
-            }
+            jmsReplySubscription.cleanupTask();
 
-            log.error("Cache has been cleared due to a JMSException for subscription on : " + uniqueReplyQueueName, e);
+            log.error("Cache has been cleared due to a JMSException for subscription on : " + identifier, e);
         }
     }
 }

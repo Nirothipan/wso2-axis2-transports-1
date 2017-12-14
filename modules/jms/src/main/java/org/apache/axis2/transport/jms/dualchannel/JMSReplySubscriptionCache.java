@@ -34,7 +34,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 class JMSReplySubscriptionCache {
 
-    private static final int CACHE_EXPIRATION_INTERVAL = 900; //seconds
+    private static final int CACHE_EXPIRATION_INTERVAL = 30; //days
 
     /**
      * Is set to true if the cache is already initialized.
@@ -73,17 +73,18 @@ class JMSReplySubscriptionCache {
             String cacheName = CACHE_KEY;
 
             if (log.isDebugEnabled()) {
-                log.debug("Using cacheName : " + cacheName);
+                log.info("Using cacheName : " + cacheName);
             }
 
             CacheManager cacheManager = Caching.getCacheManagerFactory().getCacheManager(CACHE_MANAGER_KEY);
             isCacheInitialized.getAndSet(true);
 
-            Cache<String, JMSReplySubscription> cache = cacheManager.<String, JMSReplySubscription>createCacheBuilder(cacheName)
+            Cache<String, JMSReplySubscription> cache = cacheManager.<String, JMSReplySubscription>createCacheBuilder
+                    (cacheName)
                     .setExpiry(CacheConfiguration.ExpiryType.MODIFIED,
-                            new CacheConfiguration.Duration(TimeUnit.SECONDS, CACHE_EXPIRATION_INTERVAL))
+                            new CacheConfiguration.Duration(TimeUnit.DAYS, CACHE_EXPIRATION_INTERVAL))
                     .setExpiry(CacheConfiguration.ExpiryType.ACCESSED,
-                            new CacheConfiguration.Duration(TimeUnit.SECONDS, CACHE_EXPIRATION_INTERVAL))
+                            new CacheConfiguration.Duration(TimeUnit.DAYS, CACHE_EXPIRATION_INTERVAL))
                     .setStoreByValue(false).build();
 
             cache.registerCacheEntryListener(entryExpiredListener);
