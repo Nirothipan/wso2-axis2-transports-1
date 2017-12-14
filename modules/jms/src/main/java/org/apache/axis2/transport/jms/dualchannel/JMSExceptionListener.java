@@ -33,7 +33,7 @@ class JMSExceptionListener implements ExceptionListener {
 
     private String uniqueReplyQueueName;
 
-    public JMSExceptionListener(String uniqueReplyQueueName) {
+    JMSExceptionListener(String uniqueReplyQueueName) {
         this.uniqueReplyQueueName = uniqueReplyQueueName;
     }
 
@@ -46,9 +46,13 @@ class JMSExceptionListener implements ExceptionListener {
             JMSReplySubscription jmsReplySubscription = JMSReplySubscriptionCache.getJMSReplySubscriptionCache()
                     .getAndRemove(uniqueReplyQueueName);
 
-            jmsReplySubscription.cleanupTask();
+            try {
+                jmsReplySubscription.cleanupTask();
+            } catch (JMSException e1) {
+                log.error("Error while closing JMSReplySubscription for key : " + uniqueReplyQueueName, e1);
+            }
 
-            log.error("Cache has been cleared to a JMSException for subscription on : " + uniqueReplyQueueName, e);
+            log.error("Cache has been cleared due to a JMSException for subscription on : " + uniqueReplyQueueName, e);
         }
     }
 }

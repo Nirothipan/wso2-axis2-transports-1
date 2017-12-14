@@ -24,7 +24,13 @@ import org.apache.commons.logging.LogFactory;
 import javax.cache.event.CacheEntryEvent;
 import javax.cache.event.CacheEntryExpiredListener;
 import javax.cache.event.CacheEntryListenerException;
+import javax.jms.JMSException;
 
+/**
+ * Class used to properly close an active subscription once the cache expiration is triggered.
+ * @param <K> String uniqueReplyQueueName
+ * @param <V> @{@link JMSReplySubscription}
+ */
 class JMSReplySubscriptionCacheExpiredListener<K, V> implements CacheEntryExpiredListener<K, V> {
 
     private static final Log log = LogFactory.getLog(JMSReplySubscriptionCacheExpiredListener.class);
@@ -34,7 +40,12 @@ class JMSReplySubscriptionCacheExpiredListener<K, V> implements CacheEntryExpire
 
         if (cacheEntryEvent.getValue() instanceof JMSReplySubscription) {
             log.info("Clearing JMS subscription for queue : " + cacheEntryEvent.getKey());
-            ((JMSReplySubscription) cacheEntryEvent.getValue()).cleanupTask();
+            try {
+                ((JMSReplySubscription) cacheEntryEvent.getValue()).cleanupTask();
+            } catch (JMSException e) {
+                throw new CacheEntryListenerException("Error while clearing JMSReplySubscriptionCache for key : " +
+                        cacheEntryEvent.getKey(), e);
+            }
 
         } else {
             log.warn("Expired entry is not a JMSReplySubscription for key : " + cacheEntryEvent.getKey());

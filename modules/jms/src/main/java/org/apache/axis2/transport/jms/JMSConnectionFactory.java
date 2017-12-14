@@ -15,12 +15,10 @@
 */
 package org.apache.axis2.transport.jms;
 
-import com.ctc.wstx.util.StringUtil;
 import org.apache.axiom.om.OMElement;
 import org.apache.axis2.AxisFault;
 import org.apache.axis2.description.Parameter;
 import org.apache.axis2.description.ParameterIncludeImpl;
-import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
@@ -110,34 +108,6 @@ public class JMSConnectionFactory {
                 parameters.get(JMSConstants.PARAM_CONFAC_JNDI_NAME) + " or default destination : " +
                 parameters.get(JMSConstants.PARAM_DESTINATION) +
                 " for JMS CF : " + name + " using : " + parameters, e);
-        }
-        setMaxSharedJMSConnectionsCount();
-    }
-
-    public JMSConnectionFactory(Hashtable<String, String> parameters) {
-
-        this.parameters = parameters;
-
-        if (!StringUtils.isBlank(parameters.get(JMSConstants.PARAM_CONFAC_JNDI_NAME))) {
-            this.name = parameters.get(JMSConstants.PARAM_CONFAC_JNDI_NAME);
-        }
-
-        digestCacheLevel();
-        try {
-            context = new InitialContext(parameters);
-            conFactory = JMSUtils.lookup(context, ConnectionFactory.class,
-                    parameters.get(JMSConstants.PARAM_CONFAC_JNDI_NAME));
-            if (parameters.get(JMSConstants.PARAM_DESTINATION) != null) {
-                sharedDestination = JMSUtils.lookup(context, Destination.class,
-                        parameters.get(JMSConstants.PARAM_DESTINATION));
-            }
-            log.info("JMS ConnectionFactory : " + name + " initialized");
-
-        } catch (NamingException e) {
-            throw new AxisJMSException("Cannot acquire JNDI context, JMS Connection factory : " +
-                    parameters.get(JMSConstants.PARAM_CONFAC_JNDI_NAME) + " or default destination : " +
-                    parameters.get(JMSConstants.PARAM_DESTINATION) +
-                    " for JMS CF : " + name + " using : " + parameters, e);
         }
         setMaxSharedJMSConnectionsCount();
     }

@@ -18,7 +18,6 @@
 
 package org.apache.axis2.transport.jms.dualchannel;
 
-import org.apache.axis2.util.threadpool.DefaultThreadFactory;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -80,71 +79,39 @@ public class JMSReplyHandler {
         scheduledThreadPoolExecutor.setRemoveOnCancelPolicy(true);
     }
 
-    /**
-     * Add a new message listener to an already existing / new JMS subscription based on the input Reply Queue.
-     * @param uniqueReplyQueueName Modified Reply Destination to be distinct across multiple ESB nodes serving the
-     *                             same reply destination.
-     * @param initialContext Initial JMS Context
-     * @param jmsReplyContainer DataHolder for storing the reply message when received.
-     * @param jmsCorrelationId correlation ID of this JMS request.
-     * @param connectionFactoryName connection factory to be used for the consumer (in case the cache is empty).
-     * @throws NamingException if an error occurs while looking up the reply destination.
-     * @throws JMSException if an error occurs while creating the connection / consumer.
-     */
-    public void addNewReplyToSubscription(String uniqueReplyQueueName, InitialContext initialContext,
-                                   JMSReplyContainer jmsReplyContainer, String jmsCorrelationId,
-                                   String connectionFactoryName)
-            throws JMSException, NamingException {
+    public JMSReplySubscription getReplySubscription(String identifier, InitialContext initialContext, String
+            connectionFactoryName) throws JMSException, NamingException {
 
-        JMSReplySubscription jmsReplySubscription = JMSReplySubscriptionCache.getJMSReplySubscriptionCache().get
-                (uniqueReplyQueueName);
+        JMSReplySubscription jmsReplySubscription;
 
-        if (null == jmsReplySubscription) {
-            if (log.isDebugEnabled()) {
-                log.debug("Active subscription NOT found for : " + uniqueReplyQueueName);
+        synchronized (identifier.intern()) {
+            jmsReplySubscription = JMSReplySubscriptionCache.getJMSReplySubscriptionCache().get(identifier);
+
+            if (null == jmsReplySubscription) {
+                if (log.isDebugEnabled()) {
+                    log.debug("Active subscription NOT found for : " + identifier);
+                }
+                jmsReplySubscription = new JMSReplySubscription(initialContext, connectionFactoryName, identifier);
+
+                ScheduledFuture<?> scheduledFuture = scheduledThreadPoolExecutor.
+                        scheduleWithFixedDelay(jmsReplySubscription, 0, SUBSCRIPTION_POLL_INTERVAL, TimeUnit.SECONDS);
+
+                jmsReplySubscription.setTaskReference(scheduledFuture);
+
+                JMSReplySubscriptionCache.getJMSReplySubscriptionCache().put(identifier, jmsReplySubscription);
             }
-
-            jmsReplySubscription = new JMSReplySubscription(uniqueReplyQueueName, initialContext, connectionFactoryName);
-            jmsReplySubscription.registerListener(jmsCorrelationId, jmsReplyContainer);
-
-            ScheduledFuture<?> scheduledFuture = scheduledThreadPoolExecutor.scheduleWithFixedDelay
-                    (jmsReplySubscription, 0, SUBSCRIPTION_POLL_INTERVAL, TimeUnit.SECONDS);
-
-            jmsReplySubscription.setTaskReference(scheduledFuture);
-
-            JMSReplySubscriptionCache.getJMSReplySubscriptionCache().put(uniqueReplyQueueName, jmsReplySubscription);
-        } else {
-            if (log.isDebugEnabled()) {
-                log.debug("Active subscription already found for : " + uniqueReplyQueueName);
-            }
-            jmsReplySubscription.registerListener(jmsCorrelationId, jmsReplyContainer);
         }
+
+        return jmsReplySubscription;
     }
 
     /**
-     * Remove the listener for the specific JMS request from the active subscription for given queue.
-     * @param uniqueReplyQueueName Modified Reply Destination to be distinct across multiple ESB nodes serving the
-     *                             same reply destination.
-     * @param jmsCorrelationId correlation ID of this JMS request.
-     */
-    public void stopReplyListener(String uniqueReplyQueueName, String jmsCorrelationId) {
-
-        JMSReplySubscription jmsReplySubscription = JMSReplySubscriptionCache.getJMSReplySubscriptionCache().get
-                (uniqueReplyQueueName);
-
-        if (null != jmsReplySubscription) {
-            jmsReplySubscription.unregisterListener(jmsCorrelationId);
-        }
-    }
-
-    /**
-     *
-     * @param replyQueueName original reply queue name as configured in the proxy / axis2.xml by user.
+     * Generate a unique ID to relate to the subscription.
      * @param servicePath Service path from message context.
      * @param servicePrefix to infer an open port within the ESB node
      * @return a unique queue name
      */
-    public static String generateUniqueReplyQueueName(String replyQueueName, String servicePath, String servicePrefix) {
+    public static String generateSubscriptionIdentifier(String servicePath, String servicePrefix) {
 
         // if set once, we do not need to re-evaluate the port.
         if (StringUtils.isBlank(servicePort)) {
@@ -152,8 +119,8 @@ public class JMSReplyHandler {
         }
 
         String proxyName = retrieveServiceName(servicePath);
-
-        return  replyQueueName + "__" + proxyName + ipAddress + servicePort;
+        //TODO PROXYNAME NOT REQUIRED.
+        return  proxyName + ipAddress + servicePort;
     }
 
     /**
@@ -171,6 +138,9 @@ public class JMSReplyHandler {
         return serviceName;
     }
 
+    /**
+     * Custom thread factory to name threads using a common convention.
+     */
     private class JMSReplyThreadFactory implements ThreadFactory {
 
         private final String name;

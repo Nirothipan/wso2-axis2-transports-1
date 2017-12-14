@@ -34,7 +34,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 class JMSReplySubscriptionCache {
 
-    private static final int CACHE_EXPIRATION_INTERVAL = 15; //minutes
+    private static final int CACHE_EXPIRATION_INTERVAL = 900; //seconds
 
     /**
      * Is set to true if the cache is already initialized.
@@ -81,9 +81,9 @@ class JMSReplySubscriptionCache {
 
             Cache<String, JMSReplySubscription> cache = cacheManager.<String, JMSReplySubscription>createCacheBuilder(cacheName)
                     .setExpiry(CacheConfiguration.ExpiryType.MODIFIED,
-                            new CacheConfiguration.Duration(TimeUnit.MINUTES, CACHE_EXPIRATION_INTERVAL))
+                            new CacheConfiguration.Duration(TimeUnit.SECONDS, CACHE_EXPIRATION_INTERVAL))
                     .setExpiry(CacheConfiguration.ExpiryType.ACCESSED,
-                            new CacheConfiguration.Duration(TimeUnit.MINUTES, CACHE_EXPIRATION_INTERVAL))
+                            new CacheConfiguration.Duration(TimeUnit.SECONDS, CACHE_EXPIRATION_INTERVAL))
                     .setStoreByValue(false).build();
 
             cache.registerCacheEntryListener(entryExpiredListener);
