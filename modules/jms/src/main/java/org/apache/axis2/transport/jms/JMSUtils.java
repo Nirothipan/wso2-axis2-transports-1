@@ -263,7 +263,7 @@ public class JMSUtils extends BaseUtils {
      * @param replyDestination the JMS Destination where the reply is expected
      * @param session the session to use to create a temp Queue if a response is expected
      * but a Destination has not been specified
-     * @param message the JMS message where the final Destinatio would be set as the JMS ReplyTo
+     * @param message the JMS message where the final Destination would be set as the JMS ReplyTo
      * @return the JMS ReplyTo Destination for the message
      */
     public static Destination setReplyDestination(Destination replyDestination, Session session,

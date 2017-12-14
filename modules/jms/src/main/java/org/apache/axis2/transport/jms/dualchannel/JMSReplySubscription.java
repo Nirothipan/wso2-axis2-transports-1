@@ -30,6 +30,7 @@ import javax.jms.JMSException;
 import javax.jms.Message;
 import javax.jms.MessageConsumer;
 import javax.jms.Session;
+import javax.jms.TemporaryQueue;
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
 import java.util.Map;
@@ -42,9 +43,10 @@ import java.util.concurrent.ScheduledFuture;
  * jms MessageConsumer reference.
  * Mappings to different requests and correlation ID.
  */
-class JMSReplySubscription implements Runnable {
+public class JMSReplySubscription implements Runnable {
 
     private static final Log log = LogFactory.getLog(JMSReplySubscription.class);
+    private static final int CONSUME_TIMEOUT = 1000;
 
     private MessageConsumer messageConsumer;
 
@@ -52,79 +54,104 @@ class JMSReplySubscription implements Runnable {
 
     private ScheduledFuture taskReference;
 
-    JMSReplySubscription(String uniqueReplyQueueName, InitialContext initialContext, String
-            connectionFactoryName)
+    private String identifier;
+
+    private TemporaryQueue temporaryQueue;
+
+    private Connection connection;
+    private Session session;
+
+    JMSReplySubscription(InitialContext initialContext, String connectionFactoryName, String identifier)
             throws NamingException, JMSException {
+
+        this.identifier = identifier;
 
         listeningRequests = new ConcurrentHashMap<>();
 
         ConnectionFactory connectionFactory = JMSUtils.lookup(initialContext, ConnectionFactory.class, connectionFactoryName);
 
-        Destination replyDestination = JMSUtils.lookup(initialContext, Destination.class, uniqueReplyQueueName);
+        connection = JMSUtils.createConnection(connectionFactory, null, null, JMSConstants.JMS_SPEC_VERSION_1_1, true,
+                false, null, false);
 
-        Connection connection = JMSUtils.createConnection(
-                connectionFactory, null, null, JMSConstants.JMS_SPEC_VERSION_1_1, true, false, null, false);
+        connection.setExceptionListener(new JMSExceptionListener(identifier));
 
-        connection.setExceptionListener(new JMSExceptionListener(uniqueReplyQueueName));
+        session = JMSUtils.createSession(connection, false, Session.AUTO_ACKNOWLEDGE, JMSConstants.JMS_SPEC_VERSION_1_1, true);
 
-        Session session = JMSUtils.createSession(connection, false, Session.AUTO_ACKNOWLEDGE, JMSConstants
-                .JMS_SPEC_VERSION_1_1, true);
+        temporaryQueue = session.createTemporaryQueue();
 
-        messageConsumer = JMSUtils.createConsumer(session, replyDestination, "");
+        messageConsumer = JMSUtils.createConsumer(session, temporaryQueue, "");
 
     }
 
     /**
      * After sending a JMS message with a ReplyTo header, the JMSSender can register a listener here to be notified
      * of the response.
-     * @param jmsCorrelationId
-     * @param replyContainer
+     * @param jmsCorrelationId correlation ID used to correlate the request to response message.
+     * @param replyContainer Object used to listen to, and retrieve the response message.
      */
-    void registerListener(String jmsCorrelationId, JMSReplyContainer replyContainer) {
+    public void registerListener(String jmsCorrelationId, JMSReplyContainer replyContainer) {
         listeningRequests.put(jmsCorrelationId, replyContainer);
     }
 
     /**
      * Remove listener to a specific JMS request.
-     * @param jmsCorrelationId
+     * @param jmsCorrelationId correlation ID used to correlate the request to response message.
      */
-    void unregisterListener(String jmsCorrelationId) {
+    public void unregisterListener(String jmsCorrelationId) {
         listeningRequests.remove(jmsCorrelationId);
+    }
+
+    public TemporaryQueue getTemporaryQueue() {
+        return temporaryQueue;
     }
 
     @Override
     public void run() {
         try {
-            Message message = messageConsumer.receive(1000);
+            Message message = messageConsumer.receive(CONSUME_TIMEOUT);
 
             while (null != message) {
 
                 String jmsCorrelationId = message.getJMSCorrelationID();
+                log.error("CCOOCOCOCOC correlationId : " + jmsCorrelationId + " identifier : " + identifier);
 
-                if (listeningRequests.containsKey(jmsCorrelationId)) {
-                    listeningRequests.get(jmsCorrelationId).setMessage(message);
-                    listeningRequests.get(jmsCorrelationId).getCountDownLatch().countDown();
+                JMSReplyContainer jmsReplyContainer = listeningRequests.get(jmsCorrelationId);
+
+                if (null != jmsReplyContainer) {
+                    jmsReplyContainer.setMessage(message);
+                    jmsReplyContainer.getCountDownLatch().countDown();
                 }
 
-                message = messageConsumer.receive(1000);
+                message = messageConsumer.receive(CONSUME_TIMEOUT);
             }
 
         } catch (JMSException e) {
-            log.error("Error while receiving message : ");
+            log.error("Error while receiving message : ", e);
         }
     }
 
 
+    /**
+     * Maintain reference to ScheduledFuture running the scheduled task.
+     * @param taskReference reference to ScheduledFuture running the scheduled task
+     */
     void setTaskReference(ScheduledFuture taskReference) {
         this.taskReference = taskReference;
     }
 
-    void cleanupTask() {
-        // Announce closing of this subscription to any listeners still waiting for a reply.
+    /**
+     * Announce closing of this subscription to any listeners still waiting for a reply, and cancel the scheduled task.
+     */
+    void cleanupTask() throws JMSException {
         for (Map.Entry<String,JMSReplyContainer> request : listeningRequests.entrySet()) {
             request.getValue().getCountDownLatch().countDown();
         }
         taskReference.cancel(true);
+
+        messageConsumer.close();
+        session.close();
+        connection.close();
+
     }
 
 }
