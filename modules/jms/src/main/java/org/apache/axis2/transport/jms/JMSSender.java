@@ -143,10 +143,7 @@ public class JMSSender extends AbstractTransportSender implements ManagementSupp
             // do we have a definition for a connection factory to use for this address?
             jmsConnectionFactory = getJMSConnectionFactory(jmsOut);
             
-            if (jmsConnectionFactory != null) {
-                messageSender = new JMSMessageSender(jmsConnectionFactory, targetAddress);
-
-            } else {
+            if (jmsOut.getTargetEPR().contains(JMSConstants.PARAM_DEST_TYPE)) {
                 try {
                     messageSender = jmsOut.createJMSSender(msgCtx);
 
@@ -179,6 +176,8 @@ public class JMSSender extends AbstractTransportSender implements ManagementSupp
                     }
                     handleException("Unable to create a JMSMessageSender for : " + outTransportInfo, e);
                 }
+            } else if (null != jmsConnectionFactory){
+                messageSender = new JMSMessageSender(jmsConnectionFactory, targetAddress);
             }
 
         } else if (outTransportInfo != null && outTransportInfo instanceof JMSOutTransportInfo) {
@@ -240,10 +239,9 @@ public class JMSSender extends AbstractTransportSender implements ManagementSupp
         // These variables are evaluated before sending the message, and are required after, to start a consumer for
         // the response (for Dual channel scenario).
         String identifier = null;
-        InitialContext initialContextForReplySubscription = null;
         String connectionFactoryName = null;
-
         Destination replyDestination = null;
+        InitialContext initialContextForReplySubscription = null;
 
         try {
             message = createJMSMessage(msgCtx, messageSender.getSession(), contentTypeProperty);
@@ -330,6 +328,20 @@ public class JMSSender extends AbstractTransportSender implements ManagementSupp
 
         try {
 
+            if (null == message.getJMSReplyTo()) {
+
+                Object outTransportInfo = msgCtx.getProperty(Constants.OUT_TRANSPORT_INFO);
+
+                if (null != outTransportInfo && outTransportInfo instanceof JMSOutTransportInfo) {
+
+                    JMSOutTransportInfo jmsOutTransportInfo = (JMSOutTransportInfo) outTransportInfo;
+
+                    if (null != jmsOutTransportInfo.getDestination()) {
+                        message.setJMSReplyTo(jmsOutTransportInfo.getDestination());
+                    }
+                }
+            }
+
             messageSender.send(message, msgCtx);
             Transaction transaction = (Transaction) msgCtx.getProperty(JMSConstants.JMS_XA_TRANSACTION);
             if (msgCtx.getTo().toString().contains("transport.jms.TransactionCommand=end")) {
@@ -339,7 +351,7 @@ public class JMSSender extends AbstractTransportSender implements ManagementSupp
             }
             metrics.incrementMessagesSent(msgCtx);
 
-        } catch (AxisJMSException e) {
+        } catch (AxisJMSException | JMSException e) {
             metrics.incrementFaultsSending();
             Transaction transaction = null;
             try {
@@ -386,6 +398,10 @@ public class JMSSender extends AbstractTransportSender implements ManagementSupp
                 waitForResponseFromTemporaryDestination(msgCtx, correlationId, contentTypeProperty,
                         initialContextForReplySubscription, identifier, connectionFactoryName, timeout);
             } else {
+                try {
+                    messageSender.getConnection().start();  // multiple calls are safely ignored
+                } catch (JMSException ignore) {}
+
                 waitForResponseFromDefinedDestination(messageSender.getSession(), replyDestination, msgCtx, correlationId,
                         contentTypeProperty, identifier, timeout);
             }

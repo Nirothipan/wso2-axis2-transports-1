@@ -40,12 +40,8 @@ class JMSReplySubscriptionCacheExpiredListener<K, V> implements CacheEntryExpire
 
         if (cacheEntryEvent.getValue() instanceof JMSReplySubscription) {
             log.info("Clearing JMS subscription for queue : " + cacheEntryEvent.getKey());
-            try {
-                ((JMSReplySubscription) cacheEntryEvent.getValue()).cleanupTask();
-            } catch (JMSException e) {
-                throw new CacheEntryListenerException("Error while clearing JMSReplySubscriptionCache for key : " +
-                        cacheEntryEvent.getKey(), e);
-            }
+
+            ((JMSReplySubscription) cacheEntryEvent.getValue()).cleanupTask();
 
         } else {
             log.warn("Expired entry is not a JMSReplySubscription for key : " + cacheEntryEvent.getKey());

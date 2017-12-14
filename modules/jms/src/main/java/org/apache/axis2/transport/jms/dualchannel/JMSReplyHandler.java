@@ -119,7 +119,6 @@ public class JMSReplyHandler {
         }
 
         String proxyName = retrieveServiceName(servicePath);
-        //TODO PROXYNAME NOT REQUIRED.
         return  proxyName + ipAddress + servicePort;
     }
 
@@ -130,12 +129,7 @@ public class JMSReplyHandler {
      */
     private static String retrieveServiceName(String servicePath) {
 
-        String serviceName = servicePath.split("/")[2];
-
-        if (serviceName.contains(".")) {
-            return serviceName.split(".")[0];
-        }
-        return serviceName;
+        return servicePath.split("/")[2];
     }
 
     /**
@@ -146,7 +140,7 @@ public class JMSReplyHandler {
         private final String name;
         private final AtomicInteger integer = new AtomicInteger(1);
 
-        public JMSReplyThreadFactory(String name) {
+        JMSReplyThreadFactory(String name) {
             this.name = name;
         }
 
