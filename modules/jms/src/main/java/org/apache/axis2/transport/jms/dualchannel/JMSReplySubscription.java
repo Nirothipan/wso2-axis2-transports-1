@@ -76,10 +76,21 @@ public class JMSReplySubscription implements Runnable {
 
         ConnectionFactory connectionFactory = JMSUtils.lookup(initialContext, ConnectionFactory.class, connectionFactoryName);
 
-        connection = JMSUtils.createConnection(connectionFactory, null, null, JMSConstants.JMS_SPEC_VERSION_1_1, true,
+        String username = null;
+        String password = null;
+
+        if (initialContext.getEnvironment().containsKey(JMSConstants.PARAM_JMS_PASSWORD)) {
+            username = (String) initialContext.getEnvironment().get(JMSConstants.PARAM_JMS_USERNAME);
+            password = (String) initialContext.getEnvironment().get(JMSConstants.PARAM_JMS_PASSWORD);
+        }
+
+        connection = JMSUtils.createConnection(connectionFactory, username, password, JMSConstants.JMS_SPEC_VERSION_1_1,
+                true,
                 false, null, false);
 
         connection.setExceptionListener(new JMSExceptionListener(identifier));
+
+        connection.start();
 
         session = JMSUtils.createSession(connection, false, Session.AUTO_ACKNOWLEDGE, JMSConstants.JMS_SPEC_VERSION_1_1, true);
 
