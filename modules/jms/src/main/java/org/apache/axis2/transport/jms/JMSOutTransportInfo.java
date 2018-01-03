@@ -448,17 +448,17 @@ public class JMSOutTransportInfo implements OutTransportInfo {
                 }
             }
 
-            ConnectionContainer connectionContainer = null;
+            ConnectionDataHolder connectionDataHolder = null;
             Session session = null;
             MessageProducer producer = null;
 
             // If the connection cannot be created from configured JMS connection factory, and if there is a axis2.xml
             // connection factory specified, create/ re-use an existing connection from the axis2.xml factory.
             if ((connection == null) && (jmsConnectionFactory != null)) {
-                connectionContainer = jmsConnectionFactory.getConnectionContainer();
-                connection = connectionContainer.getConnection();
-                session = connectionContainer.getSession();
-                producer = connectionContainer.getMessageProducer(destination);
+                connectionDataHolder = jmsConnectionFactory.getConnectionContainer();
+                connection = connectionDataHolder.getConnection();
+                session = connectionDataHolder.getSession();
+                producer = connectionDataHolder.getMessageProducer(destination);
             }
 
             // If for some reason a session/ producer cannot be created from above logic, create new instances.
@@ -484,7 +484,7 @@ public class JMSOutTransportInfo implements OutTransportInfo {
                     jmsSpecVersion,
                     destType == -1 ?
                             null : destType == JMSConstants.QUEUE ? Boolean.TRUE : Boolean.FALSE,
-                    connectionContainer
+                    connectionDataHolder
             );
         }
 

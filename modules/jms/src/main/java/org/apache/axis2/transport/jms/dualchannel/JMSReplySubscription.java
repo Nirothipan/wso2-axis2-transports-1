@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, WSO2 Inc. (http://www.wso2.org) All Rights Reserved.
+ * Copyright (c) 2018, WSO2 Inc. (http://www.wso2.org) All Rights Reserved.
  *
  * WSO2 Inc. licenses this file to you under the Apache License,
  * Version 2.0 (the "License"); you may not use this file except
@@ -11,7 +11,7 @@
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
+ * KIND, either express or implied. See the License for the
  * specific language governing permissions and limitations
  * under the License.
  */
@@ -39,28 +39,41 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * Contains following additional information.
- * subscriptionID metadata - NodeID + Proxy
- * jms MessageConsumer reference.
- * Mappings to different requests and correlation ID.
+ * Data holder for a cached subscription meant for consuming reply messages. Once a new request arrives for the
+ * relevant proxy, the JMSSender will attach a @{@link JMSReplyContainer} to this subscription with its
+ * request correlation Id. When the subscription receives a matching reply, it will notify the JMSSender.
  */
 public class JMSReplySubscription implements Runnable {
 
     private static final Log log = LogFactory.getLog(JMSReplySubscription.class);
     private static final int CONSUME_TIMEOUT = 1000;
 
+    /**
+     * Broker specific message consumer, connection, session references.
+     */
     private MessageConsumer messageConsumer;
-
-    private ConcurrentHashMap<String, JMSReplyContainer> listeningRequests;
-
-    private ScheduledFuture taskReference;
-
-    private String identifier;
-
-    private TemporaryQueue temporaryQueue;
-
     private Connection connection;
     private Session session;
+
+    /**
+     * Map for maintaining active requests for the relevant proxy.
+     */
+    private ConcurrentHashMap<String, JMSReplyContainer> listeningRequests;
+
+    /**
+     * Reference to periodic task which triggers a consumer.receive.
+     */
+    private ScheduledFuture taskReference;
+
+    /**
+     * Unique identifier for this subscription based on proxy name, server IP and queue name.
+     */
+    private String identifier;
+
+    /**
+     * Temporary queue on which this subscription is listening for the replies.
+     */
+    private TemporaryQueue temporaryQueue;
 
     /**
      * Lock to ensure that updates to the subscription / its listeners are updated consistently.
@@ -85,10 +98,9 @@ public class JMSReplySubscription implements Runnable {
         }
 
         connection = JMSUtils.createConnection(connectionFactory, username, password, JMSConstants.JMS_SPEC_VERSION_1_1,
-                true,
-                false, null, false);
+                true, false, null, false);
 
-        connection.setExceptionListener(new JMSExceptionListener(identifier));
+        connection.setExceptionListener(new ReplySubscriptionExceptionListener(identifier));
 
         connection.start();
 
@@ -168,6 +180,10 @@ public class JMSReplySubscription implements Runnable {
         }
         taskReference.cancel(true);
 
+        if (log.isDebugEnabled()) {
+            log.debug(" Cancelled task for reply subscription identified with : " + identifier);
+        }
+
         lock.lock();
         try {
             messageConsumer.close();
@@ -180,6 +196,7 @@ public class JMSReplySubscription implements Runnable {
             session = null;
             connection = null;
         }
+
         lock.unlock();
 
     }
