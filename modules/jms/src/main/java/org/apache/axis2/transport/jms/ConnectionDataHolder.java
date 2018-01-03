@@ -11,7 +11,7 @@
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
+ * KIND, either express or implied. See the License for the
  * specific language governing permissions and limitations
  * under the License.
  */
@@ -33,29 +33,61 @@ import java.util.Hashtable;
  * Class to contain connection, session and producer/consumer objects. This is required to support different cache
  * levels within the correct connection object.
  */
-class ConnectionContainer {
+class ConnectionDataHolder {
 
-    private static final Log log = LogFactory.getLog(ConnectionContainer.class);
+    private static final Log log = LogFactory.getLog(ConnectionDataHolder.class);
 
+    /**
+     * References to actual JMS objects used to communicate with broker.
+     */
     private volatile Connection connection;
     private volatile Session session;
     private volatile MessageProducer messageProducer;
 
+    /**
+     * Cache level value based on @{@link JMSConstants}
+     */
     private int cacheLevel = JMSConstants.CACHE_CONNECTION;
-    private Hashtable<String, String> parameters;
-    private ConnectionFactory connectionFactory;
-    private String connectionFactoryName;
 
-    ConnectionContainer(int cacheLevel, Hashtable<String, String> parameters, ConnectionFactory
-            connectionFactory, String connectionFactoryName) {
-        this.cacheLevel = cacheLevel;
-        this.parameters = parameters;
+    /** Reference to Axis2 JMSConnectionFactory
+     *
+     */
+    private final JMSConnectionFactory jmsConnectionFactory;
+
+    /**
+     * Configuration parameters as configured in axis2.xml for the connection factory owning this data holder.
+     */
+    private Hashtable<String, String> parameters;
+
+    /**
+     * Reference to Broker specific connection factory implementation.
+     */
+    private ConnectionFactory connectionFactory;
+
+    /**
+     * Name of Axis2.xml Connection factory
+     */
+    private final String connectionFactoryName;
+
+    /**
+     * index of this data holder in the sharedConnectionMap of @{@link JMSConnectionFactory}
+     */
+    private final int connectionIndex;
+
+    ConnectionDataHolder(ConnectionFactory connectionFactory, JMSConnectionFactory jmsConnectionFactory, int connectionIndex) {
+
+        this.jmsConnectionFactory = jmsConnectionFactory;
+
+        this.cacheLevel = jmsConnectionFactory.getCacheLevel();
+        this.parameters = jmsConnectionFactory.getParameters();
         this.connectionFactory = connectionFactory;
-        this.connectionFactoryName = connectionFactoryName;
+        this.connectionFactoryName = jmsConnectionFactory.getName();
+        this.connectionIndex = connectionIndex;
     }
 
     /**
      * Get cached connection if cacheLevel = connection. If not, return a new connection.
+     *
      * @return JMS Connection
      * @throws JMSException
      */
@@ -70,12 +102,15 @@ class ConnectionContainer {
             }
             return connection;
         } else {
-            return createConnection();
+            connection = createConnection();
         }
+
+        return connection;
     }
 
     /**
      * Get cached session if cacheLevel = session. If not, return a new session.
+     *
      * @return JMS Session
      */
     public Session getSession() {
@@ -90,12 +125,15 @@ class ConnectionContainer {
             }
             return session;
         } else {
-            return createSession();
+            session = createSession();
         }
+
+        return session;
     }
 
     /**
      * Get cached message producer if cacheLevel > session. If not, return a new message producer.
+     *
      * @param destination destination to publish the message.
      * @return JMS message producer
      */
@@ -140,6 +178,7 @@ class ConnectionContainer {
     /**
      * Create a new JMS connection based on parameters specified in the Connection Factory as configured from
      * axis2.xml or inline proxies.
+     *
      * Create a new Connection
      * @return a new Connection
      */
@@ -154,14 +193,15 @@ class ConnectionContainer {
                     JMSUtils.jmsSpecVersion(parameters), JMSUtils.isQueue(parameters, connectionFactoryName),
                     JMSUtils.isDurable(parameters), JMSUtils.getClientId(parameters),
                     JMSUtils.isSharedSubscription(parameters));
+            connection.setExceptionListener(new JMSExceptionListener(jmsConnectionFactory, connectionIndex));
 
             if (log.isDebugEnabled()) {
                 log.debug("New JMS Connection from JMS CF : " + connectionFactoryName + " created");
             }
 
         } catch (JMSException e) {
-            JMSUtils.handleException("Error acquiring a Connection from the JMS CF : " + connectionFactoryName +
-                    " using properties : " + parameters, e);
+            JMSUtils.handleException("Error acquiring a Connection from the JMS CF : " + connectionFactoryName
+                    + " using properties : " + parameters, e);
         }
         return connection;
     }
@@ -169,6 +209,7 @@ class ConnectionContainer {
     /**
      * Create a new JMS session based on parameters specified in the Connection Factory as configured from
      * axis2.xml or inline proxies.
+     *
      * @return A new Session
      */
     private Session createSession() {
@@ -177,7 +218,7 @@ class ConnectionContainer {
                 log.debug("Creating a new JMS Session from JMS CF : " + connectionFactoryName);
             }
             return JMSUtils.createSession(
-                    getConnection(), JMSUtils.isSessionTransacted(parameters), Session.AUTO_ACKNOWLEDGE,
+                    connection, JMSUtils.isSessionTransacted(parameters), Session.AUTO_ACKNOWLEDGE,
                     JMSUtils.jmsSpecVersion(parameters),
                     JMSUtils.isQueue(parameters, connectionFactoryName));
 
@@ -196,6 +237,7 @@ class ConnectionContainer {
     /**
      * Create a new JMS message producer based on parameters specified in the Connection Factory as configured from
      * axis2.xml or inline proxies.
+     *
      * @param destination Destination to be used
      * @return a new MessageProducer
      */
@@ -206,7 +248,7 @@ class ConnectionContainer {
             }
 
             return JMSUtils.createProducer(
-                    getSession(), destination, JMSUtils.isQueue(parameters, connectionFactoryName),
+                    session, destination, JMSUtils.isQueue(parameters, connectionFactoryName),
                     JMSUtils.jmsSpecVersion(parameters));
 
         } catch (JMSException e) {
@@ -214,4 +256,6 @@ class ConnectionContainer {
         }
         return null;
     }
+
+
 }

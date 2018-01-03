@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, WSO2 Inc. (http://www.wso2.org) All Rights Reserved.
+ * Copyright (c) 2018, WSO2 Inc. (http://www.wso2.org) All Rights Reserved.
  *
  * WSO2 Inc. licenses this file to you under the Apache License,
  * Version 2.0 (the "License"); you may not use this file except
@@ -16,39 +16,34 @@
  * under the License.
  */
 
-package org.apache.axis2.transport.jms.dualchannel;
+package org.apache.axis2.transport.jms;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-
 import javax.jms.ExceptionListener;
 import javax.jms.JMSException;
 
 /**
- * Custom exception listener to handle failure of a JMS subscriber connection in the Dual-Channel scenario.
+ * Custom exception listener to handle failure of cached JMS connections in JMS Connection Factory Instances.
  */
-class JMSExceptionListener implements ExceptionListener {
+public class JMSExceptionListener implements ExceptionListener {
 
     private static final Log log = LogFactory.getLog(JMSExceptionListener.class);
 
-    private String identifier;
+    private JMSConnectionFactory jmsConnectionFactory;
+    private final int connectionIndex;
 
-    JMSExceptionListener(String identifier) {
-        this.identifier = identifier;
+    JMSExceptionListener(JMSConnectionFactory jmsConnectionFactory, int connectionIndex) {
+        this.jmsConnectionFactory = jmsConnectionFactory;
+        this.connectionIndex = connectionIndex;
     }
 
     @Override
     public void onException(JMSException e) {
 
-        synchronized (identifier.intern()) {
-            log.error("Cache will be cleared due to JMSException for subscription on : " + identifier, e);
-
-            JMSReplySubscription jmsReplySubscription = JMSReplySubscriptionCache.getJMSReplySubscriptionCache()
-                    .getAndRemove(identifier);
-
-            jmsReplySubscription.cleanupTask();
-
-            log.error("Cache has been cleared due to a JMSException for subscription on : " + identifier, e);
-        }
+        log.warn("Cached connection will be cleared due to JMSException on : " + connectionIndex, e);
+        jmsConnectionFactory.clearCachedConnection(connectionIndex);
     }
 }
+
+

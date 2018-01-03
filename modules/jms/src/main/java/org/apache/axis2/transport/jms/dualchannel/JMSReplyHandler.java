@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, WSO2 Inc. (http://www.wso2.org) All Rights Reserved.
+ * Copyright (c) 2018, WSO2 Inc. (http://www.wso2.org) All Rights Reserved.
  *
  * WSO2 Inc. licenses this file to you under the Apache License,
  * Version 2.0 (the "License"); you may not use this file except
@@ -11,7 +11,7 @@
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
+ * KIND, either express or implied. See the License for the
  * specific language governing permissions and limitations
  * under the License.
  */
@@ -25,6 +25,8 @@ import javax.jms.JMSException;
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
 import java.net.SocketException;
+import java.util.Hashtable;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -40,23 +42,36 @@ import java.util.concurrent.atomic.AtomicInteger;
  * 1. create a JMS subscription (@{@link JMSReplySubscription}) for that specific reply queue, and schedule it to run
  *    every X seconds (@SUBSCRIPTION_POLL_INTERVAL).
  * 2. Add a listener to the correlationId of the JMS request, so that the Sender is notified of the response.
- * 3. Put the subscription to a cache for re-use. The cache will expire after X minutes of inactivity on the
- * subscription.
  */
 public class JMSReplyHandler {
 
     private static final Log log;
 
+    /**
+     * Interval between running all tasks in @scheduledThreadPoolExecutor. (Per each run, the task will messages from
+     * subscriptions until an empty response is received.)
+     */
     private static final long SUBSCRIPTION_POLL_INTERVAL = 1;
 
+    /**
+     * Scheduled executor to trigger consumption of messages periodically for all Reply Subscriptions.
+     */
     private ScheduledThreadPoolExecutor scheduledThreadPoolExecutor;
 
+    /**
+     * One time instance
+     */
     private static JMSReplyHandler jmsReplyHandler;
+
+    /**
+     * Map containing all active subscribers (per proxy) listening for reply messages.
+     */
+    private ConcurrentHashMap<String, JMSReplySubscription> replySubscriptionMap;
 
     /**
      * Port opened for proxy services.
      */
-    private static String servicePort;
+    private static String servicePort = "";
 
     /**
      * IP address
@@ -67,7 +82,7 @@ public class JMSReplyHandler {
         log = LogFactory.getLog(JMSReplyHandler.class);
         jmsReplyHandler = new JMSReplyHandler();
 
-        // Evaluate the IP address at initialization for use when generating a unique reply queue name.
+        // Evaluate the IP address at initialization for use when generating a unique identifier for each subscription.
         try {
             ipAddress = org.apache.axis2.util.Utils.getIpAddress().replace(".", "");
         } catch (SocketException e) {
@@ -84,32 +99,60 @@ public class JMSReplyHandler {
         scheduledThreadPoolExecutor = (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(10, new
                 JMSReplyThreadFactory("jms-reply-handler"));
         scheduledThreadPoolExecutor.setRemoveOnCancelPolicy(true);
+
+        replySubscriptionMap = new ConcurrentHashMap<>();
     }
 
+    /**
+     * Get existing subscription and create a new one if none exists.
+     *
+     * @param identifier unique identifier for subscription as key for the @replySubscriptionMap
+     * @param initialContext JNDI context used to initialize a connection
+     * @param connectionFactoryName name of axis2.xml connection factory.
+     * @return active subscription for registering a listener for a reply message.
+     * @throws JMSException
+     * @throws NamingException
+     */
     public JMSReplySubscription getReplySubscription(String identifier, InitialContext initialContext, String
             connectionFactoryName) throws JMSException, NamingException {
 
         JMSReplySubscription jmsReplySubscription;
 
-        synchronized (identifier.intern()) {
-            jmsReplySubscription = JMSReplySubscriptionCache.getJMSReplySubscriptionCache().get(identifier);
+        jmsReplySubscription = replySubscriptionMap.get(identifier);
 
-            if (null == jmsReplySubscription) {
-                if (log.isDebugEnabled()) {
-                    log.debug("Active subscription NOT found for : " + identifier);
+        if (null == jmsReplySubscription) {
+            synchronized (identifier.intern()) {
+                jmsReplySubscription = replySubscriptionMap.get(identifier);
+
+                if (null == jmsReplySubscription) {
+                    if (log.isDebugEnabled()) {
+                        log.debug("Active subscription NOT found for : " + identifier);
+                    }
+
+                    jmsReplySubscription = new JMSReplySubscription(initialContext, connectionFactoryName, identifier);
+                    ScheduledFuture<?> scheduledFuture = scheduledThreadPoolExecutor.
+                            scheduleWithFixedDelay(jmsReplySubscription, 0, SUBSCRIPTION_POLL_INTERVAL, TimeUnit.SECONDS);
+
+                    jmsReplySubscription.setTaskReference(scheduledFuture);
+
+                    replySubscriptionMap.put(identifier, jmsReplySubscription);
                 }
-                jmsReplySubscription = new JMSReplySubscription(initialContext, connectionFactoryName, identifier);
-
-                ScheduledFuture<?> scheduledFuture = scheduledThreadPoolExecutor.
-                        scheduleWithFixedDelay(jmsReplySubscription, 0, SUBSCRIPTION_POLL_INTERVAL, TimeUnit.SECONDS);
-
-                jmsReplySubscription.setTaskReference(scheduledFuture);
-
-                JMSReplySubscriptionCache.getJMSReplySubscriptionCache().put(identifier, jmsReplySubscription);
             }
         }
 
         return jmsReplySubscription;
+    }
+
+    /**
+     * In case of a broker failure, remove the subscription in order to attempt for a new instance.
+     * @param identifier unique identifier for subscription
+     */
+    public void removeReplySubscription(String identifier) {
+
+        if (replySubscriptionMap.containsKey(identifier)) {
+            replySubscriptionMap.get(identifier).cleanupTask();
+            replySubscriptionMap.remove(identifier);
+        }
     }
 
     /**
@@ -122,7 +165,9 @@ public class JMSReplyHandler {
 
         // if set once, we do not need to re-evaluate the port.
         if (StringUtils.isBlank(servicePort)) {
-            servicePort = servicePrefix.split(":")[2];
+            if (!StringUtils.isEmpty(servicePrefix)) {
+                servicePort = servicePrefix.split(":")[2];
+            }
         }
 
         String proxyName = retrieveServiceName(servicePath);

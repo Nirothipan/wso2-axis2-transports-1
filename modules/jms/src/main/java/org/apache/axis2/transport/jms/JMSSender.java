@@ -284,9 +284,21 @@ public class JMSSender extends AbstractTransportSender implements ManagementSupp
                 initialContextForReplySubscription = createContextForReplySubscription(jndiProperties);
 
                 // Set identifier to the proxy local to the node.
-                String proxyServicePath = msgCtx.getProperty(Constants.Configuration.TRANSPORT_IN_URL).toString();
+
+                String proxyServicePath;
+                String servicePrefix;
+
+                if (msgCtx.getProperty(Constants.Configuration.TRANSPORT_IN_URL) != null) {
+                    proxyServicePath = msgCtx.getProperty(Constants.Configuration.TRANSPORT_IN_URL).toString();
+                    servicePrefix = msgCtx.getProperty(SERVICE_PREFIX).toString();
+                } else {
+                    // Unit tests execute the JMS flow using plain Axis services, in which case this path should run.
+                    proxyServicePath = "/services/" + msgCtx.getAxisService().getName();
+                    servicePrefix = "";
+                }
+
                 identifier = JMSReplyHandler.generateSubscriptionIdentifier(proxyServicePath,
-                        msgCtx.getProperty(SERVICE_PREFIX).toString());
+                        servicePrefix);
 
                 if (jndiProperties.containsKey(JMSConstants.PARAM_REPLY_DESTINATION)) {
                     // Execute normal path.
@@ -344,10 +356,13 @@ public class JMSSender extends AbstractTransportSender implements ManagementSupp
 
             messageSender.send(message, msgCtx);
             Transaction transaction = (Transaction) msgCtx.getProperty(JMSConstants.JMS_XA_TRANSACTION);
-            if (msgCtx.getTo().toString().contains("transport.jms.TransactionCommand=end")) {
-                commitXATransaction(transaction);
-            } else if (msgCtx.getTo().toString().contains("transport.jms.TransactionCommand=rollback")) {
-                rollbackXATransaction(transaction);
+
+            if (null != msgCtx.getTo()) {
+                if (msgCtx.getTo().toString().contains("transport.jms.TransactionCommand=end")) {
+                    commitXATransaction(transaction);
+                } else if (msgCtx.getTo().toString().contains("transport.jms.TransactionCommand=rollback")) {
+                    rollbackXATransaction(transaction);
+                }
             }
             metrics.incrementMessagesSent(msgCtx);
 
@@ -388,8 +403,8 @@ public class JMSSender extends AbstractTransportSender implements ManagementSupp
             }
 
             if (log.isDebugEnabled()) {
-                log.debug("Waiting for a maximum of " + timeout + "ms for a response message to serviceId : " + identifier +
-                        " with JMS correlation ID : " + correlationId);
+                log.debug("Waiting for a maximum of " + timeout + "ms for a response message to serviceId : "
+                        + identifier + " with JMS correlation ID : " + correlationId);
             }
 
             // We assume here that the response uses the same message property to specify the content type of the
@@ -423,8 +438,9 @@ public class JMSSender extends AbstractTransportSender implements ManagementSupp
      * @throws AxisFault on error
      */
     private void waitForResponseFromTemporaryDestination(MessageContext msgCtx, String correlationId,
-                                                         String contentTypeProperty, InitialContext initialContext, String identifier, String
-                                                                 connectionFactoryName, long timeout) throws AxisFault {
+                                                         String contentTypeProperty, InitialContext initialContext,
+                                                         String identifier, String connectionFactoryName,
+                                                         long timeout) throws AxisFault {
         try {
 
             CountDownLatch replyLatch = new CountDownLatch(1);
@@ -476,8 +492,8 @@ public class JMSSender extends AbstractTransportSender implements ManagementSupp
                                            String contentTypeProperty, String identifier, long timeout) throws AxisFault {
 
         try {
-            MessageConsumer consumer = JMSUtils.createConsumer(session, replyDestination, "JMSCorrelationID = '" +
-                    correlationId + "'");
+            MessageConsumer consumer = JMSUtils.createConsumer(session, replyDestination, "JMSCorrelationID = '"
+                    + correlationId + "'");
 
             Message responseMessage = consumer.receive(timeout);
 

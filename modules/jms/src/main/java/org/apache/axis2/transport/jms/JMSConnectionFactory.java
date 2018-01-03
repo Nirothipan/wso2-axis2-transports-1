@@ -62,7 +62,7 @@ public class JMSConnectionFactory {
     /** The shared JMS connection for this JMS connection factory */
     private int cacheLevel = JMSConstants.CACHE_CONNECTION;
 
-    private Map<Integer, ConnectionContainer> sharedConnectionMap = new ConcurrentHashMap<>();
+    private Map<Integer, ConnectionDataHolder> sharedConnectionMap = new ConcurrentHashMap<>();
     private int maxSharedConnectionCount = 10;
     private int lastReturnedConnectionIndex = 0;
 
@@ -231,34 +231,34 @@ public class JMSConnectionFactory {
     }
 
 
-    ConnectionContainer getConnectionContainer() {
+    ConnectionDataHolder getConnectionContainer() {
         if (cacheLevel > JMSConstants.CACHE_NONE) {
             return getSharedConnectionContainer();
         } else {
-            return new ConnectionContainer(cacheLevel, parameters, conFactory, name);
+            return new ConnectionDataHolder(conFactory, this, 0);
         }
     }
 
-    private synchronized ConnectionContainer getSharedConnectionContainer() {
-        ConnectionContainer connectionContainer = sharedConnectionMap.get(lastReturnedConnectionIndex);
+    private synchronized ConnectionDataHolder getSharedConnectionContainer() {
+        ConnectionDataHolder connectionDataHolder = sharedConnectionMap.get(lastReturnedConnectionIndex);
 
-        if ((null == connectionContainer) && (sharedConnectionMap.size() <= maxSharedConnectionCount)) {
-            connectionContainer = new ConnectionContainer(cacheLevel, parameters, conFactory, name);
-            sharedConnectionMap.put(lastReturnedConnectionIndex, connectionContainer);
+        if ((null == connectionDataHolder) && (sharedConnectionMap.size() <= maxSharedConnectionCount)) {
+            connectionDataHolder = new ConnectionDataHolder(conFactory, this, lastReturnedConnectionIndex);
+            sharedConnectionMap.put(lastReturnedConnectionIndex, connectionDataHolder);
         }
         lastReturnedConnectionIndex++;
         if (lastReturnedConnectionIndex >= maxSharedConnectionCount) {
             lastReturnedConnectionIndex = 0;
         }
 
-        return connectionContainer;
+        return connectionDataHolder;
     }
 
     /**
      * Clear the shared connection map due to stale connections
      */
     private synchronized void clearSharedConnections() {
-        for (Map.Entry<Integer, ConnectionContainer> entry : sharedConnectionMap.entrySet()) {
+        for (Map.Entry<Integer, ConnectionDataHolder> entry : sharedConnectionMap.entrySet()) {
             entry.getValue().close();
         }
         sharedConnectionMap.clear();
@@ -288,6 +288,19 @@ public class JMSConnectionFactory {
      */
     Boolean isQueue() {
         return JMSUtils.isQueue(parameters, name);
+    }
+
+    /**
+     * In case of a broker failure, remove cached connections in order to attempt new connections.
+     * @param connectionIndex index of connection container
+     */
+    public void clearCachedConnection(int connectionIndex) {
+        ConnectionDataHolder connectionDataHolder = sharedConnectionMap.get(connectionIndex);
+
+        if (null != connectionDataHolder) {
+            connectionDataHolder.close();
+            sharedConnectionMap.remove(connectionIndex);
+        }
     }
 
 

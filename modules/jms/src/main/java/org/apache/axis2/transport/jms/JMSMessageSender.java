@@ -39,7 +39,7 @@ public class JMSMessageSender {
     private static final Log log = LogFactory.getLog(JMSMessageSender.class);
 
     /** The encapsulated connection, session and producer objects which can be cached. */
-    private ConnectionContainer connectionContainer = null;
+    private ConnectionDataHolder connectionDataHolder = null;
     /** The Connection to be used to send out */
     private Connection connection = null;
     /** The Session to be used to send out */
@@ -70,9 +70,9 @@ public class JMSMessageSender {
      * @param isQueue posting to a Queue?
      */
     public JMSMessageSender(Connection connection, Session session, MessageProducer producer,
-        Destination destination, int cacheLevel, String jmsSpecVersion, Boolean isQueue, ConnectionContainer connectionContainer) {
+        Destination destination, int cacheLevel, String jmsSpecVersion, Boolean isQueue, ConnectionDataHolder connectionDataHolder) {
 
-        this.connectionContainer = connectionContainer;
+        this.connectionDataHolder = connectionDataHolder;
         this.connection = connection;
         this.session = session;
         this.producer = producer;
@@ -120,17 +120,17 @@ public class JMSMessageSender {
             this.cacheLevel = jmsConnectionFactory.getCacheLevel();
             this.jmsSpecVersion = jmsConnectionFactory.jmsSpecVersion();
 
-            this.connectionContainer = jmsConnectionFactory.getConnectionContainer();
+            this.connectionDataHolder = jmsConnectionFactory.getConnectionContainer();
 
-            this.connection = connectionContainer.getConnection();
-            this.session = connectionContainer.getSession();
+            this.connection = connectionDataHolder.getConnection();
+            this.session = connectionDataHolder.getSession();
             boolean isQueue = jmsConnectionFactory.isQueue() == null ? true : jmsConnectionFactory.isQueue();
             this.destination =
                     jmsConnectionFactory.getSharedDestination() == null ?
                             jmsConnectionFactory.getDestination(JMSUtils.getDestination(targetAddress),
                                     isQueue ? JMSConstants.DESTINATION_TYPE_QUEUE : JMSConstants.DESTINATION_TYPE_TOPIC) :
                             jmsConnectionFactory.getSharedDestination();
-            this.producer = connectionContainer.getMessageProducer(destination);
+            this.producer = connectionDataHolder.getMessageProducer(destination);
         } catch (Exception e) {
             handleException("Error while creating message sender", e);
         }
@@ -335,8 +335,8 @@ public class JMSMessageSender {
             }
         }
 
-        if (null != connectionContainer) {
-            connectionContainer.close();
+        if (null != connectionDataHolder) {
+            connectionDataHolder.close();
         }
 
     }
@@ -425,8 +425,8 @@ public class JMSMessageSender {
         this.jmsTransaction = jmsTransaction;
     }
 
-    public void setConnectionContainer(ConnectionContainer connectionContainer) {
-        this.connectionContainer = connectionContainer;
+    public void setConnectionDataHolder(ConnectionDataHolder connectionDataHolder) {
+        this.connectionDataHolder = connectionDataHolder;
     }
 
 }
