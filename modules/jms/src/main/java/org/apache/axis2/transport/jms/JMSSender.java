@@ -481,6 +481,8 @@ public class JMSSender extends AbstractTransportSender implements ManagementSupp
 
             Message responseMessage = consumer.receive(timeout);
 
+            consumer.close();
+
             proceedMessageFlow(responseMessage, msgCtx, contentTypeProperty, identifier, correlationId, timeout);
 
         } catch (JMSException e) {

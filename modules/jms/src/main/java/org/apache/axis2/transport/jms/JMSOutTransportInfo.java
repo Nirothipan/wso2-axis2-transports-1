@@ -448,14 +448,21 @@ public class JMSOutTransportInfo implements OutTransportInfo {
                 }
             }
 
-            if (connection == null) {
-                connection = jmsConnectionFactory != null ? jmsConnectionFactory.getConnection() : null;
-            }
-
+            ConnectionContainer connectionContainer = null;
             Session session = null;
             MessageProducer producer = null;
 
-            if (connection != null) {
+            // If the connection cannot be created from configured JMS connection factory, and if there is a axis2.xml
+            // connection factory specified, create/ re-use an existing connection from the axis2.xml factory.
+            if ((connection == null) && (jmsConnectionFactory != null)) {
+                connectionContainer = jmsConnectionFactory.getConnectionContainer();
+                connection = connectionContainer.getConnection();
+                session = connectionContainer.getSession();
+                producer = connectionContainer.getMessageProducer(destination);
+            }
+
+            // If for some reason a session/ producer cannot be created from above logic, create new instances.
+            if ((connection != null) && (session == null)) {
                 if (destType == JMSConstants.QUEUE) {
                     session = ((QueueConnection) connection).
                             createQueueSession(false, Session.AUTO_ACKNOWLEDGE);
@@ -466,6 +473,7 @@ public class JMSOutTransportInfo implements OutTransportInfo {
                     producer = ((TopicSession) session).createPublisher((Topic) destination);
                 }
             }
+
             return new JMSMessageSender(
                     connection,
                     session,
@@ -475,7 +483,8 @@ public class JMSOutTransportInfo implements OutTransportInfo {
                             this.cacheLevel : jmsConnectionFactory.getCacheLevel(),
                     jmsSpecVersion,
                     destType == -1 ?
-                            null : destType == JMSConstants.QUEUE ? Boolean.TRUE : Boolean.FALSE
+                            null : destType == JMSConstants.QUEUE ? Boolean.TRUE : Boolean.FALSE,
+                    connectionContainer
             );
         }
 

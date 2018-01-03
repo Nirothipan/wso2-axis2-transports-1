@@ -53,7 +53,14 @@ public class JMSReplyHandler {
 
     private static JMSReplyHandler jmsReplyHandler;
 
+    /**
+     * Port opened for proxy services.
+     */
     private static String servicePort;
+
+    /**
+     * IP address
+     */
     private static String ipAddress;
 
     static {
@@ -125,7 +132,7 @@ public class JMSReplyHandler {
     /**
      * Retrieve service name given the path from message context.
      * @param servicePath (e.g. /services/SMSSenderProxy.SOAP11Endpoint)
-     * @return proxy service name
+     * @return proxy service name (e.g. SMSSenderProxy.SOAP11Endpoint)
      */
     private static String retrieveServiceName(String servicePath) {
 
