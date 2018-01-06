@@ -340,11 +340,6 @@
                 <artifactId>mockejb</artifactId>
                 <version>0.6-beta2</version>
             </dependency>
-            <dependency>
-                <groupId>javax.cache</groupId>
-                <artifactId>cache-api</artifactId>
-                <version>${javax.cache.version}</version>
-            </dependency>
         </dependencies>
     </dependencyManagement>
 
@@ -606,7 +601,6 @@
         <paho.version>1.0.2</paho.version>
         <powermock.version>1.7.1</powermock.version>
         <junit.version>4.8.2</junit.version>
-        <javax.cache.version>0.5</javax.cache.version>
     </properties>
 
 </project>
