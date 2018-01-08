@@ -74,6 +74,8 @@
                         </property>
                     </systemProperties>
                     <argLine>-javaagent:target/lib/aspectjweaver.jar -Xms64m -Xmx128m</argLine>
+                    <!-- This is added due to a JVM bug in Java version 7.65. Remove after Java version change. -->
+                    <argLine>-XX:-UseSplitVerifier</argLine>
                 </configuration>
             </plugin>
             <plugin>
