@@ -61,7 +61,6 @@ public class JMSSenderTestCase extends TestCase {
         JMSOutTransportInfo jmsOutTransportInfo = Mockito.mock(JMSOutTransportInfo.class);
         JMSMessageSender jmsMessageSender = Mockito.mock(JMSMessageSender.class);
         Session session = Mockito.mock(Session.class);
-
         Mockito.doReturn(session).when(jmsMessageSender).getSession();
         PowerMockito.whenNew(JMSOutTransportInfo.class).withArguments(any(String.class))
                 .thenReturn(jmsOutTransportInfo);
@@ -69,16 +68,16 @@ public class JMSSenderTestCase extends TestCase {
         PowerMockito.doNothing()
                 .when(jmsSender, "sendOverJMS", ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(),
                         ArgumentMatchers.any(), ArgumentMatchers.any());
-
         jmsSender.init(new ConfigurationContext(new AxisConfiguration()), new TransportOutDescription("jms"));
         MessageContext messageContext = new MessageContext();
         //append the transport.jms.TransactionCommand
         String targetAddress = "jms:/SimpleStockQuoteService?transport.jms.ConnectionFactoryJNDIName="
                 + "QueueConnectionFactory&transport.jms.TransactionCommand=begin"
-                + "&java.naming.factory.initial=org.apache.activemq.jndi.ActiveMQInitialContextFactory";
+                + "&java.naming.factory.initial=org.apache.activemq.jndi.ActiveMQInitialContextFactory&transport.jms"
+                + ".DestinationType=queue";
+        PowerMockito.doReturn(targetAddress).when(jmsOutTransportInfo).getTargetEPR();
         Transaction transaction = new TestJMSTransaction();
         messageContext.setProperty(JMSConstants.JMS_XA_TRANSACTION, transaction);
-
         jmsSender.sendMessage(messageContext, targetAddress, null);
         Map<Transaction, ArrayList<JMSMessageSender>> jmsMessageSenderMap = Whitebox
                 .getInternalState(JMSSender.class, "jmsMessageSenderMap");
