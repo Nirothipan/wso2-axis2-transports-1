@@ -181,7 +181,14 @@ public class JMSReplyHandler {
      */
     private static String retrieveServiceName(String servicePath) {
 
-        return servicePath.split("/")[2];
+        String serviceName = "";
+
+        String[] tokens = servicePath.split("/");
+        if (tokens.length > 0) {
+            serviceName = tokens[tokens.length - 1];
+        }
+
+        return serviceName;
     }
 
     /**
