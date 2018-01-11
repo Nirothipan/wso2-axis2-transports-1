@@ -142,8 +142,10 @@ public class JMSSender extends AbstractTransportSender implements ManagementSupp
             jmsOut = new JMSOutTransportInfo(targetAddress);
             // do we have a definition for a connection factory to use for this address?
             jmsConnectionFactory = getJMSConnectionFactory(jmsOut);
-            
-            if (jmsOut.getTargetEPR().contains(JMSConstants.PARAM_DEST_TYPE)) {
+
+            // If we have "transport.jms.ConnectionFactoryJNDIName" in the connection string, we can assume that the
+            // connection parameters are given inline instead of referred from axis2.xml.
+            if (jmsOut.getTargetEPR().contains(JMSConstants.PARAM_CONFAC_JNDI_NAME)) {
                 try {
                     messageSender = jmsOut.createJMSSender(msgCtx);
 
