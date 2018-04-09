@@ -20,6 +20,7 @@ package org.apache.axis2.transport.rabbitmq;
 
 import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
+import org.apache.axiom.om.OMAttribute;
 import org.apache.axiom.om.OMElement;
 import org.apache.axis2.AxisFault;
 import org.apache.axis2.description.Parameter;
@@ -32,10 +33,13 @@ import org.apache.axis2.transport.rabbitmq.utils.RabbitMQUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.wso2.securevault.SecretResolver;
+import org.wso2.securevault.SecureVaultException;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManagerFactory;
+import javax.xml.namespace.QName;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.security.KeyStore;
@@ -87,6 +91,45 @@ public class RabbitMQConnectionFactory {
         initConnectionFactory();
         log.info("RabbitMQ ConnectionFactory : " + name + " initialized");
     }
+
+    /**
+     * Digest a AMQP CF definition from an axis2.xml 'Parameter' and construct
+     *
+     * @param parameter the axis2.xml 'Parameter' that defined the AMQP CF
+     * @param secretResolver the SecretResolver to resolve encrypted entries
+     */
+    public RabbitMQConnectionFactory(Parameter parameter, SecretResolver secretResolver) {
+        this.name = parameter.getName();
+        ParameterIncludeImpl pi = new ParameterIncludeImpl();
+
+        try {
+            pi.deserializeParameters((OMElement) parameter.getValue());
+        } catch (AxisFault axisFault) {
+            handleException("Error reading parameters for RabbitMQ connection factory" + name, axisFault);
+        }
+
+        for (Parameter p : pi.getParameters()) {
+            OMElement paramElement = p.getParameterElement();
+            String propertyValue = p.getValue().toString();
+            if (paramElement != null) {
+                OMAttribute attribute = paramElement.getAttribute(
+                        new QName(RabbitMQConstants.SECURE_VAULT_NAMESPACE, RabbitMQConstants.SECRET_ALIAS_ATTRIBUTE));
+                if (attribute != null && attribute.getAttributeValue() != null
+                        && !attribute.getAttributeValue().isEmpty()) {
+                    if (secretResolver == null) {
+                        throw new SecureVaultException("Axis2 Secret Resolver is null. Cannot resolve encrypted entry for " + p.getName());
+                    }
+                    if (secretResolver.isTokenProtected(attribute.getAttributeValue())) {
+                        propertyValue = secretResolver.resolve(attribute.getAttributeValue());
+                    }
+                }
+            }
+            parameters.put(p.getName(), propertyValue);
+        }
+        initConnectionFactory();
+        log.info("RabbitMQ ConnectionFactory : " + name + " initialized");
+    }
+
 
     /**
      * Create a connection factory based on given parameters
