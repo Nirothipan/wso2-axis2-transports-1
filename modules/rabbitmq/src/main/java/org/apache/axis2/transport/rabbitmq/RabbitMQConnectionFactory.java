@@ -108,23 +108,23 @@ public class RabbitMQConnectionFactory {
             handleException("Error reading parameters for RabbitMQ connection factory" + name, axisFault);
         }
 
-        for (Parameter p : pi.getParameters()) {
-            OMElement paramElement = p.getParameterElement();
-            String propertyValue = p.getValue().toString();
+        for (Parameter param : pi.getParameters()) {
+            OMElement paramElement = param.getParameterElement();
+            String propertyValue = param.getValue().toString();
             if (paramElement != null) {
                 OMAttribute attribute = paramElement.getAttribute(
                         new QName(RabbitMQConstants.SECURE_VAULT_NAMESPACE, RabbitMQConstants.SECRET_ALIAS_ATTRIBUTE));
                 if (attribute != null && attribute.getAttributeValue() != null
                         && !attribute.getAttributeValue().isEmpty()) {
                     if (secretResolver == null) {
-                        throw new SecureVaultException("Axis2 Secret Resolver is null. Cannot resolve encrypted entry for " + p.getName());
+                        throw new SecureVaultException("Axis2 Secret Resolver is null. Cannot resolve encrypted entry for " + param.getName());
                     }
                     if (secretResolver.isTokenProtected(attribute.getAttributeValue())) {
                         propertyValue = secretResolver.resolve(attribute.getAttributeValue());
                     }
                 }
             }
-            parameters.put(p.getName(), propertyValue);
+            parameters.put(param.getName(), propertyValue);
         }
         initConnectionFactory();
         log.info("RabbitMQ ConnectionFactory : " + name + " initialized");

@@ -39,11 +39,10 @@ public class RabbitMQListener extends AbstractTransportListenerEx<RabbitMQEndpoi
      * The ConnectionFactoryManager which centralizes the management of defined factories
      */
     private RabbitMQConnectionFactoryManager rabbitMQConnectionFactoryManager;
-    private SecretResolver secretResolver;
 
     @Override
     protected void doInit() throws AxisFault {
-        secretResolver = getConfigurationContext().getAxisConfiguration().getSecretResolver();
+        SecretResolver secretResolver = getConfigurationContext().getAxisConfiguration().getSecretResolver();
         rabbitMQConnectionFactoryManager = new RabbitMQConnectionFactoryManager(getTransportInDescription(), secretResolver);
         log.info("RabbitMQ AMQP Transport Receiver initialized...");
     }
