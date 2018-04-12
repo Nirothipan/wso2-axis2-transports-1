@@ -193,21 +193,40 @@ public class JMSMessageSender {
         try {
             if ("1.1".equals(jmsSpecVersion) || "2.0".equals(jmsSpecVersion) || isQueue == null) {
                 producer.send(message);
+                if(session.getTransacted()) {
+                    session.commit();
+                }
 
             } else {
                 if (isQueue) {
                     try {
                         producer.send(message);
+                        if(session.getTransacted()) {
+                            session.commit();
+                        }
                     } catch (JMSException e) {
+                        log.error(("Error sending message with MessageContext ID : " + msgCtx.getMessageID()
+                                + " to destination : " + destination + " Hence creating a temporary subscriber" + e));
                         createTempQueueConsumer();
                         producer.send(message);
+                        if(session.getTransacted()) {
+                            session.commit();
+                        }
                     }
                 } else {
                     try {
                         ((TopicPublisher) producer).publish(message);
+                        if(session.getTransacted()) {
+                            session.commit();
+                        }
                     } catch (JMSException e) {
+                        log.error(("Error sending message with MessageContext ID : " + msgCtx.getMessageID()
+                                + " to destination : " + destination + " Hence creating a temporary subscriber" + e));
                         createTempTopicSubscriber();
                         ((TopicPublisher) producer).publish(message);
+                        if(session.getTransacted()) {
+                            session.commit();
+                        }
                     }
                 }
             }
@@ -289,6 +308,15 @@ public class JMSMessageSender {
 
     private void handleException(String message, Exception e) {
         log.error(message, e);
+        try {
+            if(session.getTransacted()) {
+                session.rollback();
+                message = message + "Rollbacked transacted session.";
+            }
+        } catch (JMSException ex) {
+            log.error("Error while rollback transaction session = "
+                    + session + " destination = " + destination, ex);
+        }
 
         // Cleanup connections on error. See ESBJAVA-4713
         if (!isTransacted()) { // else transaction rollback will call closeOnException() due to exception thrown below
