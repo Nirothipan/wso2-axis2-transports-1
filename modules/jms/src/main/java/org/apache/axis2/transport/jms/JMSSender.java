@@ -313,8 +313,7 @@ public class JMSSender extends AbstractTransportSender implements ManagementSupp
 
                     replyDestination = JMSUtils.lookupDestination(initialContextForReplySubscription,
                             replyDestName, replyDestType);
-
-                    message.setJMSReplyTo(replyDestination);
+                    JMSUtils.setReplyDestination(replyDestination, messageSender.getDestination(), message);
 
                 } else {
                     usingTemporaryQueues = true;
@@ -325,7 +324,8 @@ public class JMSSender extends AbstractTransportSender implements ManagementSupp
                     JMSReplySubscription jmsReplySubscription = JMSReplyHandler.getInstance().getReplySubscription
                             (identifier, initialContextForReplySubscription, connectionFactoryName);
 
-                    message.setJMSReplyTo(jmsReplySubscription.getTemporaryQueue());
+                    JMSUtils.setReplyDestination(jmsReplySubscription.getTemporaryQueue(),
+                            messageSender.getDestination(), message);
                 }
 
             } catch (NamingException | JMSException e) {
@@ -351,7 +351,8 @@ public class JMSSender extends AbstractTransportSender implements ManagementSupp
                     JMSOutTransportInfo jmsOutTransportInfo = (JMSOutTransportInfo) outTransportInfo;
 
                     if (null != jmsOutTransportInfo.getDestination()) {
-                        message.setJMSReplyTo(jmsOutTransportInfo.getDestination());
+                        JMSUtils.setReplyDestination(jmsOutTransportInfo.getDestination(),
+                                messageSender.getDestination(), message);
                     }
                 }
             }
