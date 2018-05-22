@@ -457,4 +457,7 @@ public class JMSMessageSender {
         this.connectionDataHolder = connectionDataHolder;
     }
 
+    public Destination getDestination() {
+        return destination;
+    }
 }
