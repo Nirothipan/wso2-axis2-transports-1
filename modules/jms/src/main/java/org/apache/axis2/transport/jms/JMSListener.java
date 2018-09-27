@@ -25,6 +25,7 @@ import org.apache.axis2.transport.base.ManagementSupport;
 import org.apache.axis2.transport.base.event.TransportErrorListener;
 import org.apache.axis2.transport.base.event.TransportErrorSource;
 import org.apache.axis2.transport.base.event.TransportErrorSourceSupport;
+import org.wso2.securevault.SecretResolver;
 
 import java.util.Hashtable;
 import javax.jms.Connection;
@@ -62,7 +63,8 @@ public class JMSListener extends AbstractTransportListenerEx<JMSEndpoint> implem
     
     @Override
     protected void doInit() throws AxisFault {
-        connFacManager = new JMSConnectionFactoryManager(getTransportInDescription());
+        SecretResolver secretResolver = getConfigurationContext().getAxisConfiguration().getSecretResolver();
+        connFacManager = new JMSConnectionFactoryManager(getTransportInDescription(), secretResolver);
         log.info("JMS Transport Receiver/Listener initialized...");
     }
 
