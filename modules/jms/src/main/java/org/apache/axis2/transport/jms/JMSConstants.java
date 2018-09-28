@@ -389,4 +389,9 @@ public class JMSConstants {
     public static final String DELIVERY_COUNT = "jms.message.delivery.count";
 
     public static final String JMS_MESSAGE_DELIVERY_COUNT_HEADER = "JMSXDeliveryCount";
+
+    /**
+     * Qualified name for SecureVault aliases.
+     */
+    public static final QName ALIAS_QNAME = new QName("http://org.wso2.securevault/configuration", "secretAlias");
 }
