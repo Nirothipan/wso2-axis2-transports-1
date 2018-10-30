@@ -145,46 +145,33 @@ public class JMSSender extends AbstractTransportSender implements ManagementSupp
             // do we have a definition for a connection factory to use for this address?
             jmsConnectionFactory = getJMSConnectionFactory(jmsOut);
 
-            // If we have "transport.jms.ConnectionFactoryJNDIName" in the connection string, we can assume that the
-            // connection parameters are given inline instead of referred from axis2.xml.
-            if (jmsOut.getTargetEPR().contains(JMSConstants.PARAM_CONFAC_JNDI_NAME)) {
+            if (jmsConnectionFactory == null) {
+                jmsConnectionFactory = connFacManager.getConnectionFactoryFromTargetEndpoint(targetAddress);
+            }
+
+            // MessageSender only needed to add if the scenario involved with XA transaction.
+            // It can be identified by looking at target url's transport.jms.TransactionCommand parameter.
+            if ((targetAddress.contains(JMSConstants.JMS_TRANSACTION_COMMAND))) {
                 try {
                     messageSender = jmsOut.createJMSSender(msgCtx);
-
-                    // messageSender only needed to add if the scenario involved with XA transaction. It can be
-                    // identified by looking at target url's transport.jms.TransactionCommand parameter.
-                    if ((targetAddress.contains(JMSConstants.JMS_TRANSACTION_COMMAND))) {
-                        Transaction transaction = (Transaction) msgCtx.getProperty(JMSConstants.JMS_XA_TRANSACTION);
-                        if (jmsMessageSenderMap.get(transaction) == null) {
-                            ArrayList list = new ArrayList();
-                            list.add(messageSender);
-                            jmsMessageSenderMap.put(transaction, list);
-                        } else {
-                            ArrayList list = jmsMessageSenderMap.get(transaction);
-                            list.add(messageSender);
-                            jmsMessageSenderMap.put(transaction, list);
-                        }
+                    Transaction transaction = (Transaction) msgCtx.getProperty(JMSConstants.JMS_XA_TRANSACTION);
+                    if (jmsMessageSenderMap.get(transaction) == null) {
+                        ArrayList list = new ArrayList();
+                        list.add(messageSender);
+                        jmsMessageSenderMap.put(transaction, list);
+                    } else {
+                        ArrayList list = jmsMessageSenderMap.get(transaction);
+                        list.add(messageSender);
+                        jmsMessageSenderMap.put(transaction, list);
                     }
-
                 } catch (JMSException e) {
-                    Transaction transaction = null;
-                    try {
-                        if (msgCtx.getProperty(JMSConstants.JMS_XA_TRANSACTION_MANAGER) != null) {
-                            transaction =
-                                    ((TransactionManager) msgCtx.getProperty(JMSConstants.JMS_XA_TRANSACTION_MANAGER))
-                                            .getTransaction();
-                            rollbackXATransaction(transaction);
-                        }
-                    } catch (SystemException e1) {
-                        handleException("Error occurred during obtaining  transaction", e1);
-                    }
                     handleException("Unable to create a JMSMessageSender for : " + outTransportInfo, e);
                 }
-            } else if (null != jmsConnectionFactory){
+            } else {
                 messageSender = new JMSMessageSender(jmsConnectionFactory, targetAddress);
             }
 
-        } else if (outTransportInfo != null && outTransportInfo instanceof JMSOutTransportInfo) {
+        } else if (outTransportInfo instanceof JMSOutTransportInfo) {
 
             jmsOut = (JMSOutTransportInfo) outTransportInfo;
             try {
@@ -200,7 +187,7 @@ public class JMSSender extends AbstractTransportSender implements ManagementSupp
         // received the request). The property name can be overridden by a message
         // context property.
         String contentTypeProperty =
-            (String) msgCtx.getProperty(JMSConstants.CONTENT_TYPE_PROPERTY_PARAM);
+                (String) msgCtx.getProperty(JMSConstants.CONTENT_TYPE_PROPERTY_PARAM);
         if (contentTypeProperty == null) {
             contentTypeProperty = jmsOut.getContentTypeProperty();
         }

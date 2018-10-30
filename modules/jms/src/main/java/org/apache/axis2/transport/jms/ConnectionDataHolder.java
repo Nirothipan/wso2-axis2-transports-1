@@ -138,15 +138,9 @@ class ConnectionDataHolder {
      * @return JMS message producer
      */
     MessageProducer getMessageProducer(Destination destination) {
+
         if (cacheLevel > JMSConstants.CACHE_SESSION) {
-            if (null == messageProducer) {
-                synchronized (this) {
-                    if (null == messageProducer) {
-                        messageProducer = createProducer(destination);
-                    }
-                }
-            }
-            return messageProducer;
+            return getNullDestinationSharedProducer();
         } else {
             return createProducer(destination);
         }
@@ -255,6 +249,23 @@ class ConnectionDataHolder {
             JMSUtils.handleException("Error creating JMS producer from JMS CF : " + connectionFactoryName,e);
         }
         return null;
+    }
+
+    /**
+     * Get a shared MessageProducer from this JMS CF with destination set to null to use with multiple destinations
+     * when producer caching is enabled.
+     *
+     * @return shared MessageProducer from this JMS CF with destination set to null
+     */
+    private synchronized MessageProducer getNullDestinationSharedProducer() {
+        if (messageProducer == null) {
+            messageProducer = createProducer(null);
+            if (log.isDebugEnabled()) {
+                log.debug("Created shared JMS MessageConsumer with no destination specified, for JMS CF : " +
+                        connectionFactoryName + " , with producer caching enabled");
+            }
+        }
+        return messageProducer;
     }
 
 
