@@ -54,6 +54,13 @@ public class JMSMessageSender {
     private String jmsSpecVersion = null;
     /** Are we sending to a Queue ? */
     private Boolean isQueue = null;
+    /**
+     * Boolean to track if producer caching will be honoured.
+     * True if producer caching is enabled and this {@link JMSMessageSender} is created specifying a
+     * {@link JMSConnectionFactory} and target EPR, via
+     * {@link JMSMessageSender#JMSMessageSender(JMSConnectionFactory, String)}.
+     */
+    private Boolean isProducerCachingHonoured = false;
 
     private Xid jmsXAXid;
     private XAResource jmsXaResource;
@@ -118,6 +125,7 @@ public class JMSMessageSender {
 
         try {
             this.cacheLevel = jmsConnectionFactory.getCacheLevel();
+            this.isProducerCachingHonoured = cacheLevel > JMSConstants.CACHE_SESSION;
             this.jmsSpecVersion = jmsConnectionFactory.jmsSpecVersion();
 
             this.connectionDataHolder = jmsConnectionFactory.getConnectionContainer();
@@ -125,11 +133,14 @@ public class JMSMessageSender {
             this.connection = connectionDataHolder.getConnection();
             this.session = connectionDataHolder.getSession();
             boolean isQueue = jmsConnectionFactory.isQueue() == null ? true : jmsConnectionFactory.isQueue();
-            this.destination =
-                    jmsConnectionFactory.getSharedDestination() == null ?
-                            jmsConnectionFactory.getDestination(JMSUtils.getDestination(targetAddress),
-                                    isQueue ? JMSConstants.DESTINATION_TYPE_QUEUE : JMSConstants.DESTINATION_TYPE_TOPIC) :
-                            jmsConnectionFactory.getSharedDestination();
+            String destinationFromAddress = JMSUtils.getDestination(targetAddress);
+            //precedence is given to the destination specified by targetAddress
+            if(destinationFromAddress != null && !destinationFromAddress.isEmpty()) {
+                this.destination = jmsConnectionFactory.getDestination(JMSUtils.getDestination(targetAddress),
+                        isQueue ? JMSConstants.DESTINATION_TYPE_QUEUE : JMSConstants.DESTINATION_TYPE_TOPIC);
+            } else {
+                this.destination = jmsConnectionFactory.getSharedDestination();
+            }
             this.producer = connectionDataHolder.getMessageProducer(destination);
         } catch (Exception e) {
             handleException("Error while creating message sender", e);
@@ -192,7 +203,7 @@ public class JMSMessageSender {
         // perform actual message sending
         try {
             if ("1.1".equals(jmsSpecVersion) || "2.0".equals(jmsSpecVersion) || isQueue == null) {
-                producer.send(message);
+                publishMessage(message);
                 if(session.getTransacted()) {
                     session.commit();
                 }
@@ -200,7 +211,7 @@ public class JMSMessageSender {
             } else {
                 if (isQueue) {
                     try {
-                        producer.send(message);
+                        publishMessage(message);
                         if(session.getTransacted()) {
                             session.commit();
                         }
@@ -208,7 +219,7 @@ public class JMSMessageSender {
                         log.error(("Error sending message with MessageContext ID : " + msgCtx.getMessageID()
                                 + " to destination : " + destination + " Hence creating a temporary subscriber" + e));
                         createTempQueueConsumer();
-                        producer.send(message);
+                        publishMessage(message);
                         if(session.getTransacted()) {
                             session.commit();
                         }
@@ -309,7 +320,7 @@ public class JMSMessageSender {
     private void handleException(String message, Exception e) {
         log.error(message, e);
         try {
-            if(session.getTransacted()) {
+            if(null != session && session.getTransacted()) {
                 session.rollback();
                 message = message + "Rollbacked transacted session.";
             }
@@ -395,6 +406,20 @@ public class JMSMessageSender {
             }
         }
         return null;
+    }
+
+    /**
+     * Send message to the specified destination.
+     *
+     * @param message the message to be sent
+     * @throws JMSException
+     */
+    private void publishMessage(Message message) throws JMSException {
+        if (isProducerCachingHonoured) {
+            producer.send(destination, message);
+        } else {
+            producer.send(message);
+        }
     }
 
     public void setConnection(Connection connection) {
