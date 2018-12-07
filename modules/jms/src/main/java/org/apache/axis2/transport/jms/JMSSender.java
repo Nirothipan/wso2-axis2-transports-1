@@ -249,7 +249,8 @@ public class JMSSender extends AbstractTransportSender implements ManagementSupp
 
         // should we wait for a synchronous response on this same thread?
         boolean waitForResponse = waitForSynchronousResponse(msgCtx);
-        boolean usingTemporaryQueues = false;
+        boolean usingCachedQueue = false;
+        boolean usingGeneratedReplyQueues = false;
 
         // Set the unique reply destination into the message before sending.
         if (waitForResponse) {
@@ -263,6 +264,15 @@ public class JMSSender extends AbstractTransportSender implements ManagementSupp
                     // based on inline URL.
                     // We give priority to the inline URL over any cached JMS connection factories.
                     jndiProperties = BaseUtils.getEPRProperties(jmsOut.getTargetEPR());
+
+                    //Merge JMS parameters from JMS connection factory to the jmsTransportOut object
+                    if (null != jmsConnectionFactory) {
+                        for (String jmsParameter : jmsConnectionFactory.getParameters().keySet()) {
+                            if (!jndiProperties.containsKey(jmsParameter)) {
+                                jndiProperties.put(jmsParameter, jmsConnectionFactory.getParameters().get(jmsParameter));
+                            }
+                        }
+                    }
 
                 } else if (null != jmsConnectionFactory) {
                     // Endpoint is configured to use an explicitly configured sender connection factory from axis2.xml.
@@ -304,8 +314,8 @@ public class JMSSender extends AbstractTransportSender implements ManagementSupp
                             replyDestName, replyDestType);
                     JMSUtils.setReplyDestination(replyDestination, messageSender.getDestination(), message);
 
-                } else {
-                    usingTemporaryQueues = true;
+                } else if (Boolean.parseBoolean(jndiProperties.get(JMSConstants.PARAM_CACHED_REPLY_QUEUE))) {
+                    usingCachedQueue = true;
                     // Use a re-usable subscription on a temporary queue
 
                     connectionFactoryName = jndiProperties.get(JMSConstants.PARAM_CONFAC_JNDI_NAME);
@@ -315,6 +325,10 @@ public class JMSSender extends AbstractTransportSender implements ManagementSupp
 
                     JMSUtils.setReplyDestination(jmsReplySubscription.getTemporaryQueue(),
                             messageSender.getDestination(), message);
+                } else {
+                    usingGeneratedReplyQueues = true;
+                    replyDestination = JMSUtils.createTemporaryDestination(messageSender.getSession());
+                    JMSUtils.setReplyDestination(replyDestination, messageSender.getDestination(), message);
                 }
 
             } catch (NamingException | JMSException e) {
@@ -401,16 +415,27 @@ public class JMSSender extends AbstractTransportSender implements ManagementSupp
 
             // We assume here that the response uses the same message property to specify the content type of the
             // message.
-            if (usingTemporaryQueues) {
-                waitForResponseFromTemporaryDestination(msgCtx, correlationId, contentTypeProperty,
+            if (usingCachedQueue) {
+                waitForResponseFromCachedDestination(msgCtx, correlationId, contentTypeProperty,
                         initialContextForReplySubscription, identifier, connectionFactoryName, timeout);
             } else {
                 try {
                     messageSender.getConnection().start();  // multiple calls are safely ignored
                 } catch (JMSException ignore) {}
 
-                waitForResponseFromDefinedDestination(messageSender.getSession(), replyDestination, msgCtx, correlationId,
-                        contentTypeProperty, identifier, timeout);
+                if (usingGeneratedReplyQueues) {
+                    waitForResponseFromDefinedDestination(messageSender.getSession(), replyDestination, msgCtx,
+                                                          correlationId, contentTypeProperty, identifier, timeout, "");
+                    try {
+                        ((TemporaryQueue) replyDestination).delete();
+                    } catch (JMSException e) {
+                        handleException("Error deleting temporary created message queue", e);
+                    }
+                } else {
+                    waitForResponseFromDefinedDestination(messageSender.getSession(), replyDestination, msgCtx,
+                                                          correlationId, contentTypeProperty, identifier, timeout,
+                                                          "JMSCorrelationID = '" + correlationId + "'");
+                }
             }
         }
     }
@@ -429,7 +454,7 @@ public class JMSSender extends AbstractTransportSender implements ManagementSupp
      * @param timeout wait time to receive the response.
      * @throws AxisFault on error
      */
-    private void waitForResponseFromTemporaryDestination(MessageContext msgCtx, String correlationId,
+    private void waitForResponseFromCachedDestination(MessageContext msgCtx, String correlationId,
                                                          String contentTypeProperty, InitialContext initialContext,
                                                          String identifier, String connectionFactoryName,
                                                          long timeout) throws AxisFault {
@@ -481,11 +506,11 @@ public class JMSSender extends AbstractTransportSender implements ManagementSupp
      */
     private void waitForResponseFromDefinedDestination(Session session, Destination replyDestination,
                                            MessageContext msgCtx, String correlationId,
-                                           String contentTypeProperty, String identifier, long timeout) throws AxisFault {
+                                           String contentTypeProperty, String identifier, long timeout,
+                                           String messageSelector) throws AxisFault {
 
         try {
-            MessageConsumer consumer = JMSUtils.createConsumer(session, replyDestination, "JMSCorrelationID = '"
-                    + correlationId + "'");
+            MessageConsumer consumer = JMSUtils.createConsumer(session, replyDestination, messageSelector);
 
             Message responseMessage = consumer.receive(timeout);
 
