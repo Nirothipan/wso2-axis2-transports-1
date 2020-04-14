@@ -167,8 +167,10 @@ public class JMSListener extends AbstractTransportListenerEx<JMSEndpoint> implem
 
         try {
             //Closing the opened jms connection
-            log.debug("Closing the opened Jms connection");
-            connection.close();
+            if (connectionStatus) {
+                log.debug("Closing the opened Jms connection");
+                connection.close();
+            }
         } catch (JMSException e) {
             log.error("Error Closing JMS Connection");
         }
