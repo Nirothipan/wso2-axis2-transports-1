@@ -65,7 +65,7 @@ public class JMSSenderTestCase extends TestCase {
         PowerMockito.whenNew(JMSOutTransportInfo.class).withArguments(any(String.class))
                 .thenReturn(jmsOutTransportInfo);
         Mockito.doReturn(jmsMessageSender).when(jmsOutTransportInfo).createJMSSender(any(MessageContext.class));
-        PowerMockito.doNothing()
+        PowerMockito.doReturn(new JMSReplyMessage())
                 .when(jmsSender, "sendOverJMS", ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(),
                         ArgumentMatchers.any(), ArgumentMatchers.any());
         jmsSender.init(new ConfigurationContext(new AxisConfiguration()), new TransportOutDescription("jms"));
