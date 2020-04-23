@@ -219,7 +219,8 @@ public class JMSUtils extends BaseUtils {
         }
         else {
             try {
-                handleException("Unsupported JMS message type " + message.getClass().getName());
+                //Do not change the prefix since this is used in synapse-core to id this specific exception
+                handleException(JMSConstants.PREFIX_JMS_UNSUPPORTED_MESSAGE_TYPE + " " + message.getClass().getName());
             } catch (BaseTransportException e) {
                 //JMS transport receiving a malformed jms message should treated as a different case by introducing a
                 //Error code (101550) in Synapse level to differentiate this we have introduced a new Exception
