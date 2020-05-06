@@ -406,9 +406,4 @@ public class JMSConstants {
      * The Service level Parameter name indicating the temporary response destination of a service.
      */
     public static final String PARAM_CACHED_REPLY_QUEUE = "transport.jms.CachedResponseQueue";
-
-    /**
-     * This is the prefix used in synapse-core to id jms transport invalid message type exception.
-     */
-    public static final String PREFIX_JMS_UNSUPPORTED_MESSAGE_TYPE = "Unsupported JMS message type";
 }
