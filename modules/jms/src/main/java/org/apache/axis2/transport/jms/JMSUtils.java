@@ -223,11 +223,7 @@ public class JMSUtils extends BaseUtils {
             } catch (BaseTransportException e) {
                 //JMS transport receiving a malformed jms message should treated as a different case by introducing a
                 //Error code (101550) in Synapse level to differentiate this we have introduced a new Exception
-
-                //This exception should be added in the Axis2 component but since in esb-5.0.0 there are 3 different
-                //axis2 versions used in synapse, axis2-transport and esb-5.0.0 we have added it in jms-transport itself
-                //when porting please add this exception in the axis2 component
-                throw new IgnoreSuspensionOfJMSTransportErrorException(e.getMessage());
+                throw new AxisBaseTransportException(e.getMessage());
             }
             return; // Make compiler happy
         }

@@ -19,13 +19,13 @@ package org.apache.axis2.transport.jms;
 
 import org.apache.axis2.transport.base.BaseTransportException;
 
-public class IgnoreSuspensionOfJMSTransportErrorException extends BaseTransportException {
+public class AxisBaseTransportException extends BaseTransportException {
 
-    public IgnoreSuspensionOfJMSTransportErrorException(String msg) {
+    public AxisBaseTransportException(String msg) {
         super(msg);
     }
 
-    public IgnoreSuspensionOfJMSTransportErrorException(String msg, Exception e) {
+    public AxisBaseTransportException(String msg, Exception e) {
         super(msg, e);
     }
 }
