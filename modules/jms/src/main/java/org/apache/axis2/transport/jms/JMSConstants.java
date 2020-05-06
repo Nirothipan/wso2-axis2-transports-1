@@ -406,4 +406,8 @@ public class JMSConstants {
      * The Service level Parameter name indicating the temporary response destination of a service.
      */
     public static final String PARAM_CACHED_REPLY_QUEUE = "transport.jms.CachedResponseQueue";
+
+    // Error handling properties.
+    static final String SENDING_FAULT = "SENDING_FAULT";
+    static final String ERROR_MESSAGE = "ERROR_MESSAGE";
 }
